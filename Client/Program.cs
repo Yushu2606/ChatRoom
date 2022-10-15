@@ -15,10 +15,10 @@ namespace ChatRoom
         private static void Main()
         {
             // 进程互斥
-            new Mutex(true, Assembly.GetExecutingAssembly().GetName().Name, out bool isNotRunning);
+            _ = new Mutex(true, Assembly.GetExecutingAssembly().GetName().Name, out bool isNotRunning);
             if (!isNotRunning)
             {
-                MessageBox.Show("你只能同时运行一个聊天室实例！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                _ = MessageBox.Show("你只能同时运行一个聊天室实例！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 Environment.Exit(0);
             }
             // 修复中文输入输出
@@ -86,7 +86,7 @@ namespace ChatRoom
                         }
                         Console.WriteLine($"已断开连接：{ex.Message}");
                         Console.Write("按任意键关闭此窗口. . .");
-                        Console.ReadLine();
+                        _ = Console.ReadLine();
                         Environment.Exit(0);
                         return;
                     }

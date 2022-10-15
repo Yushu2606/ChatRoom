@@ -1,4 +1,4 @@
-﻿namespace ChatRoom
+﻿namespace ChatRoom.Utils
 {
     internal struct UserData
     {
