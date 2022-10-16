@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using System;
 using System.IO;
 using System.Linq;
+using System.Management.Instrumentation;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
@@ -22,7 +23,7 @@ namespace ChatRoom
             if (!isNotRunning && !args.Contains("--multi") && !args.Contains("-m"))
             {
                 _ = MessageBox.Show("你只能同时运行一个聊天室实例！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-                Environment.Exit(0);
+                throw new InstanceNotFoundException("你只能同时运行一个聊天室实例！");
             }
             // 修复中文输入输出
             Console.InputEncoding = Encoding.GetEncoding(936);
@@ -80,7 +81,7 @@ namespace ChatRoom
                             }
                         }
                         SimpleLogger.Info($"已重连至{ip}");
-                        return;
+                        continue;
                     }
                     string receivedData = Console.OutputEncoding.GetString(bytes).Replace("\0", string.Empty);
                     Base<object> data = JsonConvert.DeserializeObject<Base<object>>(receivedData);

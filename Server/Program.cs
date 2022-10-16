@@ -45,6 +45,10 @@ namespace ChatRoom
                             }
                             catch (IOException ex)
                             {
+                                if (client.Connected)
+                                {
+                                    throw;
+                                }
                                 Console.WriteLine($"{client.Client.RemoteEndPoint}已断开连接：{ex.Message}");
                                 _ = clients.Remove(client);
                                 return;
