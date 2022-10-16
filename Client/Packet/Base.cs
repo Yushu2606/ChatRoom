@@ -13,7 +13,7 @@
     {
         Unknown,
         Login,
-        Logout,
-        Message
+        Message,
+        ChangeName
     }
 }

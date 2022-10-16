@@ -1,7 +1,10 @@
 ﻿using ChatRoom.Packet;
+using ChatRoom.Utils;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
@@ -12,6 +15,7 @@ namespace ChatRoom
 {
     internal class Client
     {
+        internal static TcpClient TcpClient { get; private set; }
         private static void Main()
         {
             // 进程互斥
@@ -25,19 +29,21 @@ namespace ChatRoom
             Console.InputEncoding = Encoding.GetEncoding(936);
             Console.OutputEncoding = Encoding.GetEncoding(936);
         start:
-            TcpClient client = new TcpClient();
+            Console.Title = "聊天室";
+            TcpClient = new TcpClient();
             {
                 Console.Write("请输入服务器地址：");
                 string ip = Console.ReadLine();
                 try
                 {
-                    client.Connect(ip, 15743);
+                    TcpClient.Connect(ip, 15743);
                 }
                 catch (SocketException ex)
                 {
-                    Console.WriteLine($"连接至{ip}失败：{ex.Message}");
+                    SimpleLogger.Error($"连接至{ip}失败：{ex.Message}");
                     goto start;
                 }
+                Console.Title = $"聊天室 - {ip}";
                 Console.Write("请输入用户名：");
                 string userName = Console.ReadLine();
                 if (string.IsNullOrEmpty(userName))
@@ -53,13 +59,14 @@ namespace ChatRoom
                     }
                 });
                 byte[] bytes = Console.InputEncoding.GetBytes(packet);
-                NetworkStream stream = client.GetStream();
+                NetworkStream stream = TcpClient.GetStream();
                 if (!stream.CanWrite)
                 {
-                    Console.WriteLine($"连接至{ip}失败：无法写入数据流");
-                    client.Close();
+                    SimpleLogger.Error($"连接至{ip}失败：无法写入数据流");
+                    TcpClient.Close();
                     goto start;
                 }
+                Console.Title = $"聊天室 - {ip}:{userName}";
                 stream.Write(bytes, 0, bytes.Length);
                 stream.Flush(); // 刷新缓冲区
                 Console.Clear();
@@ -68,7 +75,7 @@ namespace ChatRoom
             {
                 while (true)
                 {
-                    NetworkStream stream = client.GetStream();
+                    NetworkStream stream = TcpClient.GetStream();
                     if (!stream.CanRead)
                     {
                         continue;
@@ -80,11 +87,11 @@ namespace ChatRoom
                     }
                     catch (IOException ex)
                     {
-                        if (client.Available != 0)
+                        if (TcpClient.Available != 0)
                         {
                             throw;
                         }
-                        Console.WriteLine($"已断开连接：{ex.Message}");
+                        SimpleLogger.Error($"已断开连接：{ex.Message}");
                         Console.Write("按任意键关闭此窗口. . .");
                         _ = Console.ReadLine();
                         Environment.Exit(0);
@@ -115,6 +122,20 @@ namespace ChatRoom
                 {
                     continue;
                 }
+                if (line.StartsWith("/"))
+                {
+                    int deep = 1;
+                    List<string> args = line.ToUpper().Substring(1).Split(' ').ToList();
+                    try
+                    {
+                        Command.Processing(deep, args, Command.Commands);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        SimpleLogger.Error($"命令运行失败：{ex.Message}");
+                    }
+                    continue;
+                }
                 string packet = JsonConvert.SerializeObject(new Base<Message.Request>()
                 {
                     Action = Packet.Action.Message,
@@ -124,7 +145,7 @@ namespace ChatRoom
                     }
                 });
                 byte[] bytes = Console.InputEncoding.GetBytes(packet);
-                NetworkStream stream = client.GetStream();
+                NetworkStream stream = TcpClient.GetStream();
                 if (!stream.CanWrite)
                 {
                     continue;

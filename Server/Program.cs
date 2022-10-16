@@ -18,7 +18,7 @@ namespace ChatRoom
             // 修复中文输入输出
             Console.InputEncoding = Encoding.GetEncoding(936);
             Console.OutputEncoding = Encoding.GetEncoding(936);
-            Dictionary<TcpClient, UserData> pairs = new Dictionary<TcpClient, UserData>();
+            Dictionary<TcpClient, UserData> clients = new Dictionary<TcpClient, UserData>();
             TcpListener listenner = new TcpListener(IPAddress.Any, 15743);
             listenner.Start();
             while (true)
@@ -44,7 +44,7 @@ namespace ChatRoom
                                 Console.WriteLine($"{clientIP}已断开连接：{ex.Message}");
                                 if (!isFirstTime)
                                 {
-                                    _ = pairs.Remove(client);
+                                    _ = clients.Remove(client);
                                 }
                                 return;
                             }
@@ -57,7 +57,7 @@ namespace ChatRoom
                                 Console.WriteLine($"{clientIP}已断开连接：{ex.Message}");
                                 if (!isFirstTime)
                                 {
-                                    _ = pairs.Remove(client);
+                                    _ = clients.Remove(client);
                                 }
                                 return;
                             }
@@ -72,7 +72,7 @@ namespace ChatRoom
                                             break;
                                         }
                                         Base<LogInOrOut.Request> realData = JsonConvert.DeserializeObject<Base<LogInOrOut.Request>>(receivedData);
-                                        pairs.Add(client, new UserData()
+                                        clients.Add(client, new UserData()
                                         {
                                             UserName = realData.Param.UserName,
                                             UUID = clientIP.GetHashCode().ToString("x")
@@ -95,12 +95,12 @@ namespace ChatRoom
                                             {
                                                 DateTime = DateTime.Now,
                                                 Message = realData.Param.Message,
-                                                UserName = pairs[client].UserName,
-                                                UUID = pairs[client].UUID
+                                                UserName = clients[client].UserName,
+                                                UUID = clients[client].UUID
                                             }
                                         });
                                         byte[] packetBytes = Console.OutputEncoding.GetBytes(packet);
-                                        foreach (TcpClient otherClient in pairs.Keys)
+                                        foreach (TcpClient otherClient in clients.Keys)
                                         {
                                             if (otherClient == client)
                                             {
@@ -114,6 +114,16 @@ namespace ChatRoom
                                             stream.Write(packetBytes, 0, packetBytes.Length);
                                             stream.Flush(); // 刷新缓冲区
                                         }
+                                        break;
+                                    }
+                                case Packet.Action.ChangeName:
+                                    {
+                                        if (isFirstTime)
+                                        {
+                                            break;
+                                        }
+                                        Base<ChangeName.Request> realData = JsonConvert.DeserializeObject<Base<ChangeName.Request>>(receivedData);
+                                        clients[client].UserName = realData.Param.NewName;
                                         break;
                                     }
                             }
