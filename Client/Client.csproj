@@ -5,6 +5,7 @@
     <TargetFramework>net35</TargetFramework>
     <RootNamespace>ChatRoom</RootNamespace>
     <AssemblyName>聊天室</AssemblyName>
+    <ApplicationIcon>favicon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
