@@ -1,6 +1,6 @@
 ﻿namespace ChatRoom.Packet
 {
-    public struct LogInOrOut
+    public struct LogIn
     {
         public struct Request
         {

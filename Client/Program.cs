@@ -50,10 +50,10 @@ namespace ChatRoom
                 {
                     userName = new Random().Next().ToString("x");   // 随机用户名
                 }
-                string packet = JsonConvert.SerializeObject(new Base<LogInOrOut.Request>()
+                string packet = JsonConvert.SerializeObject(new Base<LogIn.Request>()
                 {
                     Action = Packet.Action.Login,
-                    Param = new LogInOrOut.Request()
+                    Param = new LogIn.Request()
                     {
                         UserName = userName
                     }

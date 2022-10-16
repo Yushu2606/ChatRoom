@@ -71,7 +71,7 @@ namespace ChatRoom
                                         {
                                             break;
                                         }
-                                        Base<LogInOrOut.Request> realData = JsonConvert.DeserializeObject<Base<LogInOrOut.Request>>(receivedData);
+                                        Base<LogIn.Request> realData = JsonConvert.DeserializeObject<Base<LogIn.Request>>(receivedData);
                                         clients.Add(client, new UserData()
                                         {
                                             UserName = realData.Param.UserName,
