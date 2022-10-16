@@ -16,11 +16,4 @@ namespace ChatRoom.Packet
             public string UUID { get; set; }
         }
     }
-    public struct ChangeName
-    {
-        public struct Request
-        {
-            public string NewName { get; set; }
-        }
-    }
 }

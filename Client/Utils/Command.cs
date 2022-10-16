@@ -6,9 +6,9 @@ using System.Net.Sockets;
 
 namespace ChatRoom.Utils
 {
-    internal class Command
+    internal static class Command
     {
-        internal static Dictionary<string, CommandData> Commands { get; set; } = new Dictionary<string, CommandData>()
+        internal static Dictionary<string, CommandData> Commands { get; } = new Dictionary<string, CommandData>()
         {
             ["HELP"] = new CommandData()
             {
@@ -18,15 +18,15 @@ namespace ChatRoom.Utils
                     Dictionary<string, CommandData> commands = Commands;
                     foreach (string arg in args)
                     {
-                        if (!commands.ContainsKey(arg))
+                        if ((!commands.ContainsKey(arg.ToUpper())) || (commands[arg.ToUpper()].SubCommands is null))
                         {
                             continue;
                         }
-                        commands = commands[arg].SubCommands;
+                        commands = commands[arg.ToUpper()].SubCommands;
                     }
                     foreach (KeyValuePair<string, CommandData> command in commands)
                     {
-                        Console.WriteLine($"{command.Key.ToLower()} - {command.Value.Description}");
+                        Console.WriteLine($"  {command.Key.ToLower()}\t{command.Value.Description}");
                     }
                 }
             },
@@ -44,15 +44,14 @@ namespace ChatRoom.Utils
                             {
                                 throw new ArgumentException("参数数量错误");
                             }
-                            string packet = JsonConvert.SerializeObject(new Base<ChangeName.Request>()
+                            byte[] bytes = Console.InputEncoding.GetBytes(JsonConvert.SerializeObject(new Base<UserName.Request>()
                             {
-                                Action = Packet.Action.ChangeName,
-                                Param = new ChangeName.Request()
+                                Action = Packet.Action.SetUserName,
+                                Param = new UserName.Request()
                                 {
-                                    NewName = args[0]
+                                    UserName = args[0]
                                 }
-                            });
-                            byte[] bytes = Console.InputEncoding.GetBytes(packet);
+                            }));
                             NetworkStream stream = Client.TcpClient.GetStream();
                             if (!stream.CanWrite)
                             {
@@ -65,32 +64,33 @@ namespace ChatRoom.Utils
                 }
             }
         };
-        internal static void Processing(int deep, List<string> args, Dictionary<string, CommandData> commands)
+        internal static void Process(string[] args, Dictionary<string, CommandData> commands, int deep = 1)
         {
-            if (!commands.ContainsKey(args[deep - 1]))
+            string mainCommand = args[deep - 1].ToUpper();
+            if (!commands.ContainsKey(mainCommand))
             {
                 throw new ArgumentException($"未知的命令：{args[deep - 1]}");
             }
-            if (commands[args[deep - 1]].Action != null)
+            if (commands[mainCommand].Action != null)
             {
                 List<string> newArgs = new List<string>(args);
-                if (args.Count - deep > 0)
+                if (args.Length - deep > 0)
                 {
                     newArgs.RemoveRange(0, deep);
                 }
-                commands[args[deep - 1]].Action(newArgs);
+                commands[mainCommand].Action(newArgs);
             }
-            if (commands[args[deep - 1]].SubCommands != null)
+            if (commands[mainCommand].SubCommands != null)
             {
-                if (args.Count <= deep)
+                if (args.Length <= deep)
                 {
-                    foreach (KeyValuePair<string, CommandData> command in commands[args[deep - 1]].SubCommands)
+                    foreach (KeyValuePair<string, CommandData> command in commands[mainCommand].SubCommands)
                     {
-                        Console.WriteLine($"{command.Key.ToLower()} - {command.Value.Description}");
+                        Console.WriteLine($"  {command.Key.ToLower()}\t{command.Value.Description}");
                     }
                     return;
                 }
-                Processing(deep + 1, args, commands[args[deep - 1]].SubCommands);
+                Process(args, commands[mainCommand].SubCommands, deep + 1);
             }
         }
     }

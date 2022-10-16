@@ -8,8 +8,7 @@
     public enum Action
     {
         Unknown,
-        Login,
         Message,
-        ChangeName
+        SetUserName
     }
 }

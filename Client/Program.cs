@@ -2,7 +2,6 @@
 using ChatRoom.Utils;
 using Newtonsoft.Json;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
@@ -16,11 +15,11 @@ namespace ChatRoom
     internal class Client
     {
         internal static TcpClient TcpClient { get; private set; }
-        private static void Main()
+        private static void Main(string[] args)
         {
             // 进程互斥
             _ = new Mutex(true, Assembly.GetExecutingAssembly().GetName().Name, out bool isNotRunning);
-            if (!isNotRunning)
+            if (!isNotRunning && !args.Contains("--multi") && !args.Contains("-m"))
             {
                 _ = MessageBox.Show("你只能同时运行一个聊天室实例！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
                 Environment.Exit(0);
@@ -31,48 +30,22 @@ namespace ChatRoom
         start:
             Console.Title = "聊天室";
             TcpClient = new TcpClient();
+            Console.Write("请输入服务器地址：");
+            string ip = Console.ReadLine();
+            try
             {
-                Console.Write("请输入服务器地址：");
-                string ip = Console.ReadLine();
-                try
-                {
-                    TcpClient.Connect(ip, 15743);
-                }
-                catch (SocketException ex)
-                {
-                    SimpleLogger.Error($"连接至{ip}失败：{ex.Message}");
-                    goto start;
-                }
-                Console.Title = $"聊天室 - {ip}";
-                Console.Write("请输入用户名：");
-                string userName = Console.ReadLine();
-                if (string.IsNullOrEmpty(userName))
-                {
-                    userName = new Random().Next().ToString("x");   // 随机用户名
-                }
-                string packet = JsonConvert.SerializeObject(new Base<LogIn.Request>()
-                {
-                    Action = Packet.Action.Login,
-                    Param = new LogIn.Request()
-                    {
-                        UserName = userName
-                    }
-                });
-                byte[] bytes = Console.InputEncoding.GetBytes(packet);
-                NetworkStream stream = TcpClient.GetStream();
-                if (!stream.CanWrite)
-                {
-                    SimpleLogger.Error($"连接至{ip}失败：无法写入数据流");
-                    TcpClient.Close();
-                    goto start;
-                }
-                Console.Title = $"聊天室 - {ip}:{userName}";
-                stream.Write(bytes, 0, bytes.Length);
-                stream.Flush(); // 刷新缓冲区
-                Console.Clear();
+                TcpClient.Connect(ip, 19132);
             }
+            catch (SocketException ex)
+            {
+                SimpleLogger.Error($"连接至{ip}失败：{ex.Message}");
+                goto start;
+            }
+            Console.Title = $"聊天室：{ip}";
             new Thread(() =>
             {
+                Console.Clear();
+                SimpleLogger.Info($"已连接至{ip}");
                 while (true)
                 {
                     NetworkStream stream = TcpClient.GetStream();
@@ -87,14 +60,26 @@ namespace ChatRoom
                     }
                     catch (IOException ex)
                     {
-                        if (TcpClient.Available != 0)
+                        if (TcpClient.Connected)
                         {
                             throw;
                         }
                         SimpleLogger.Error($"已断开连接：{ex.Message}");
-                        Console.Write("按任意键关闭此窗口. . .");
-                        _ = Console.ReadLine();
-                        Environment.Exit(0);
+                        int count = 0;
+                        while (!TcpClient.Connected)
+                        {
+                            TcpClient = new TcpClient();
+                            try
+                            {
+                                SimpleLogger.Info($"重连中：{++count}");
+                                TcpClient.Connect(ip, 15743);
+                            }
+                            catch (SocketException ex1)
+                            {
+                                SimpleLogger.Error($"重连至{ip}失败：{ex1.Message}");
+                            }
+                        }
+                        SimpleLogger.Info($"已重连至{ip}");
                         return;
                     }
                     string receivedData = Console.OutputEncoding.GetString(bytes).Replace("\0", string.Empty);
@@ -122,13 +107,15 @@ namespace ChatRoom
                 {
                     continue;
                 }
+                if (!TcpClient.Connected)
+                {
+                    continue;
+                }
                 if (line.StartsWith("/"))
                 {
-                    int deep = 1;
-                    List<string> args = line.ToUpper().Substring(1).Split(' ').ToList();
                     try
                     {
-                        Command.Processing(deep, args, Command.Commands);
+                        Command.Process(line.Substring(1).Split(' '), Command.Commands);
                     }
                     catch (ArgumentException ex)
                     {
@@ -136,15 +123,14 @@ namespace ChatRoom
                     }
                     continue;
                 }
-                string packet = JsonConvert.SerializeObject(new Base<Message.Request>()
+                byte[] bytes = Console.InputEncoding.GetBytes(JsonConvert.SerializeObject(new Base<Message.Request>()
                 {
                     Action = Packet.Action.Message,
                     Param = new Message.Request()
                     {
                         Message = line
                     }
-                });
-                byte[] bytes = Console.InputEncoding.GetBytes(packet);
+                }));
                 NetworkStream stream = TcpClient.GetStream();
                 if (!stream.CanWrite)
                 {

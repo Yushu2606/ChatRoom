@@ -19,19 +19,23 @@ namespace ChatRoom
             Console.InputEncoding = Encoding.GetEncoding(936);
             Console.OutputEncoding = Encoding.GetEncoding(936);
             Dictionary<TcpClient, UserData> clients = new Dictionary<TcpClient, UserData>();
-            TcpListener listenner = new TcpListener(IPAddress.Any, 15743);
+            TcpListener listenner = new TcpListener(IPAddress.Any, 19132);
             listenner.Start();
+            Console.WriteLine($"开始监听{listenner.LocalEndpoint}");
             while (true)
             {
                 TcpClient client = listenner.AcceptTcpClient();
                 if (client.Connected)
                 {
-                    string clientRemoteEndPoint = client.Client.RemoteEndPoint.ToString();
-                    string clientIP = clientRemoteEndPoint.Substring(0, clientRemoteEndPoint.LastIndexOf(':'));
-                    Console.WriteLine($"{clientIP}已连接");
+                    string clientIP = client.Client.RemoteEndPoint.ToString().Substring(0, client.Client.RemoteEndPoint.ToString().LastIndexOf(':'));
+                    clients.Add(client, new UserData()
+                    {
+                        UserName = new Random().Next().ToString("x"),   // 随机用户名
+                        UUID = clientIP.GetHashCode().ToString("x")
+                    });
+                    Console.WriteLine($"{client.Client.RemoteEndPoint}已连接");
                     new Thread(() =>
                     {
-                        bool isFirstTime = true;
                         while (true)
                         {
                             byte[] bytes = new byte[ushort.MaxValue];
@@ -41,11 +45,8 @@ namespace ChatRoom
                             }
                             catch (IOException ex)
                             {
-                                Console.WriteLine($"{clientIP}已断开连接：{ex.Message}");
-                                if (!isFirstTime)
-                                {
-                                    _ = clients.Remove(client);
-                                }
+                                Console.WriteLine($"{client.Client.RemoteEndPoint}已断开连接：{ex.Message}");
+                                _ = clients.Remove(client);
                                 return;
                             }
                             catch (InvalidOperationException ex)
@@ -54,41 +55,18 @@ namespace ChatRoom
                                 {
                                     throw;
                                 }
-                                Console.WriteLine($"{clientIP}已断开连接：{ex.Message}");
-                                if (!isFirstTime)
-                                {
-                                    _ = clients.Remove(client);
-                                }
+                                Console.WriteLine($"{client.Client.RemoteEndPoint}已断开连接：{ex.Message}");
+                                _ = clients.Remove(client);
                                 return;
                             }
                             string receivedData = Console.OutputEncoding.GetString(bytes).Replace("\0", string.Empty);
                             Base<object> data = JsonConvert.DeserializeObject<Base<object>>(receivedData);
                             switch (data.Action)
                             {
-                                case Packet.Action.Login:
-                                    {
-                                        if (!isFirstTime)
-                                        {
-                                            break;
-                                        }
-                                        Base<LogIn.Request> realData = JsonConvert.DeserializeObject<Base<LogIn.Request>>(receivedData);
-                                        clients.Add(client, new UserData()
-                                        {
-                                            UserName = realData.Param.UserName,
-                                            UUID = clientIP.GetHashCode().ToString("x")
-                                        });
-                                        isFirstTime = false;
-                                        Console.WriteLine($"{realData.Param.UserName}（{clientIP}）已登录");
-                                        break;
-                                    }
                                 case Packet.Action.Message:
                                     {
-                                        if (isFirstTime)
-                                        {
-                                            break;
-                                        }
                                         Base<Message.Request> realData = JsonConvert.DeserializeObject<Base<Message.Request>>(receivedData);
-                                        string packet = JsonConvert.SerializeObject(new Base<Message.Response>()
+                                        byte[] packetBytes = Console.OutputEncoding.GetBytes(JsonConvert.SerializeObject(new Base<Message.Response>()
                                         {
                                             Action = Packet.Action.Message,
                                             Param = new Message.Response()
@@ -98,8 +76,7 @@ namespace ChatRoom
                                                 UserName = clients[client].UserName,
                                                 UUID = clients[client].UUID
                                             }
-                                        });
-                                        byte[] packetBytes = Console.OutputEncoding.GetBytes(packet);
+                                        }));
                                         foreach (TcpClient otherClient in clients.Keys)
                                         {
                                             if (otherClient == client)
@@ -116,14 +93,10 @@ namespace ChatRoom
                                         }
                                         break;
                                     }
-                                case Packet.Action.ChangeName:
+                                case Packet.Action.SetUserName:
                                     {
-                                        if (isFirstTime)
-                                        {
-                                            break;
-                                        }
-                                        Base<ChangeName.Request> realData = JsonConvert.DeserializeObject<Base<ChangeName.Request>>(receivedData);
-                                        clients[client].UserName = realData.Param.NewName;
+                                        Base<UserName.Request> realData = JsonConvert.DeserializeObject<Base<UserName.Request>>(receivedData);
+                                        clients[client].UserName = realData.Param.UserName;
                                         break;
                                     }
                             }
