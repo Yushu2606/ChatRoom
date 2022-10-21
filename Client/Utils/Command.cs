@@ -1,8 +1,5 @@
-﻿using ChatRoom.Packet;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.Net.Sockets;
 
 namespace ChatRoom.Utils
 {
@@ -40,49 +37,35 @@ namespace ChatRoom.Utils
                         Description = "修改用户名",
                         Action = (args) =>
                         {
-                            if (args.Count != 1)
+                            if (!(args.Count is 1))
                             {
                                 throw new ArgumentException("参数数量错误");
                             }
-                            byte[] bytes = Console.InputEncoding.GetBytes(JsonConvert.SerializeObject(new Base<UserName.Request>()
-                            {
-                                Action = Packet.Action.SetUserName,
-                                Param = new UserName.Request()
-                                {
-                                    UserName = args[0]
-                                }
-                            }));
-                            NetworkStream stream = Client.TcpClient.GetStream();
-                            if (!stream.CanWrite)
-                            {
-                                return;
-                            }
-                            stream.Write(bytes, 0, bytes.Length);
-                            stream.Flush(); // 刷新缓冲区
+                            Client.UserName = args[0];
                         }
                     }
                 }
             }
         };
-        internal static void Process(string[] args, Dictionary<string, CommandData> commands, int deep = 1)
+        internal static void Process(IList<string> args, Dictionary<string, CommandData> commands, int deep = 1)
         {
             string mainCommand = args[deep - 1].ToUpper();
             if (!commands.ContainsKey(mainCommand))
             {
                 throw new ArgumentException($"未知的命令：{args[deep - 1]}");
             }
-            if (commands[mainCommand].Action != null)
+            if (!(commands[mainCommand].Action is null))
             {
                 List<string> newArgs = new List<string>(args);
-                if (args.Length - deep > 0)
+                if (args.Count - deep > 0)
                 {
                     newArgs.RemoveRange(0, deep);
                 }
                 commands[mainCommand].Action(newArgs);
             }
-            if (commands[mainCommand].SubCommands != null)
+            if (!(commands[mainCommand].SubCommands is null))
             {
-                if (args.Length <= deep)
+                if (args.Count <= deep)
                 {
                     foreach (KeyValuePair<string, CommandData> command in commands[mainCommand].SubCommands)
                     {

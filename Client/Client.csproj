@@ -5,14 +5,19 @@
     <TargetFramework>net35</TargetFramework>
     <RootNamespace>ChatRoom</RootNamespace>
     <AssemblyName>聊天室</AssemblyName>
-    <ApplicationIcon>favicon.ico</ApplicationIcon>
+    <ApplicationIcon>../Icon/favicon.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <CheckForOverflowUnderflow>True</CheckForOverflowUnderflow>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.1" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Reference Include="PresentationFramework" />
   </ItemGroup>
 

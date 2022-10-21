@@ -1,5 +1,4 @@
-﻿using ChatRoom.Packet;
-using ChatRoom.Utils;
+using ChatRoom.Packet;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
@@ -15,98 +14,94 @@ namespace ChatRoom
     {
         private static void Main()
         {
-            // 修复中文输入输出
-            Console.InputEncoding = Encoding.GetEncoding(936);
-            Console.OutputEncoding = Encoding.GetEncoding(936);
-            Dictionary<TcpClient, UserData> clients = new Dictionary<TcpClient, UserData>();
+            Dictionary<TcpClient, string> clients = new Dictionary<TcpClient, string>();
+            int argCount = 0, maxCount = 0;
+            System.Timers.Timer timer = new System.Timers.Timer()
+            {
+                Interval = 1000
+            };
+            timer.Elapsed += (_, _e) =>
+            {
+                Console.Title = $"聊天室服务器   {clients.Count}   {argCount}（{maxCount}）";
+                argCount = 0;
+            };
+            timer.Start();
             TcpListener listenner = new TcpListener(IPAddress.Any, 19132);
             listenner.Start();
             Console.WriteLine($"开始监听{listenner.LocalEndpoint}");
             while (true)
             {
                 TcpClient client = listenner.AcceptTcpClient();
-                if (client.Connected)
+                string clientIP = client.Client.RemoteEndPoint.ToString().Substring(0, client.Client.RemoteEndPoint.ToString().LastIndexOf(':'));
+                clients.Add(client, clientIP.GetHashCode().ToString("x"));
+                _ = ThreadPool.QueueUserWorkItem((_) =>
                 {
-                    string clientIP = client.Client.RemoteEndPoint.ToString().Substring(0, client.Client.RemoteEndPoint.ToString().LastIndexOf(':'));
-                    clients.Add(client, new UserData()
+                    while (true)
                     {
-                        UserName = new Random().Next().ToString("x"),   // 随机用户名
-                        UUID = clientIP.GetHashCode().ToString("x")
-                    });
-                    Console.WriteLine($"{client.Client.RemoteEndPoint}已连接");
-                    new Thread(() =>
-                    {
-                        while (true)
+                        byte[] bytes = new byte[ushort.MaxValue];
+                        try
                         {
-                            byte[] bytes = new byte[ushort.MaxValue];
-                            try
+                            NetworkStream stream = client.GetStream();
+                            if (!stream.CanRead)
                             {
-                                _ = client.GetStream().Read(bytes, 0, bytes.Length);
+                                continue;
                             }
-                            catch (IOException ex)
-                            {
-                                if (client.Connected)
-                                {
-                                    throw;
-                                }
-                                Console.WriteLine($"{client.Client.RemoteEndPoint}已断开连接：{ex.Message}");
-                                _ = clients.Remove(client);
-                                return;
-                            }
-                            catch (InvalidOperationException ex)
-                            {
-                                if (client.Connected)
-                                {
-                                    throw;
-                                }
-                                Console.WriteLine($"{client.Client.RemoteEndPoint}已断开连接：{ex.Message}");
-                                _ = clients.Remove(client);
-                                return;
-                            }
-                            string receivedData = Console.OutputEncoding.GetString(bytes).Replace("\0", string.Empty);
-                            Base<object> data = JsonConvert.DeserializeObject<Base<object>>(receivedData);
-                            switch (data.Action)
-                            {
-                                case Packet.Action.Message:
-                                    {
-                                        Base<Message.Request> realData = JsonConvert.DeserializeObject<Base<Message.Request>>(receivedData);
-                                        byte[] packetBytes = Console.OutputEncoding.GetBytes(JsonConvert.SerializeObject(new Base<Message.Response>()
-                                        {
-                                            Action = Packet.Action.Message,
-                                            Param = new Message.Response()
-                                            {
-                                                DateTime = DateTime.Now,
-                                                Message = realData.Param.Message,
-                                                UserName = clients[client].UserName,
-                                                UUID = clients[client].UUID
-                                            }
-                                        }));
-                                        foreach (TcpClient otherClient in clients.Keys)
-                                        {
-                                            if (otherClient == client)
-                                            {
-                                                continue;   // 跳过自己
-                                            }
-                                            NetworkStream stream = otherClient.GetStream();
-                                            if (!stream.CanWrite)
-                                            {
-                                                continue;
-                                            }
-                                            stream.Write(packetBytes, 0, packetBytes.Length);
-                                            stream.Flush(); // 刷新缓冲区
-                                        }
-                                        break;
-                                    }
-                                case Packet.Action.SetUserName:
-                                    {
-                                        Base<UserName.Request> realData = JsonConvert.DeserializeObject<Base<UserName.Request>>(receivedData);
-                                        clients[client].UserName = realData.Param.UserName;
-                                        break;
-                                    }
-                            }
+                            _ = stream.Read(bytes, 0, bytes.Length);
                         }
-                    }).Start();
-                }
+                        catch (IOException ex)
+                        {
+                            Console.WriteLine($"{client.Client.RemoteEndPoint}已断开连接：{ex}");
+                            _ = clients.Remove(client);
+                            return;
+                        }
+                        string receivedString = Encoding.UTF8.GetString(bytes).Replace("\0", string.Empty);
+                        if (string.IsNullOrEmpty(receivedString))
+                        {
+                            continue;
+                        }
+                        switch (JsonConvert.DeserializeObject<Base<object>>(receivedString).Action)
+                        {
+                            case ActionType.Message:
+                                Base<Message.Request> data = JsonConvert.DeserializeObject<Base<Message.Request>>(receivedString);
+                                byte[] packetBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new Base<Message.Response>()
+                                {
+                                    Action = ActionType.Message,
+                                    Param = new Message.Response()
+                                    {
+                                        DateTime = DateTime.Now,
+                                        Message = data.Param.Message,
+                                        UserName = data.Param.UserName,
+                                        UUID = clients[client]
+                                    }
+                                }));
+                                foreach (TcpClient otherClient in clients.Keys)
+                                {
+                                    try
+                                    {
+                                        NetworkStream stream = otherClient.GetStream();
+                                        if (!stream.CanWrite)
+                                        {
+                                            continue;
+                                        }
+                                        stream.Write(packetBytes, 0, packetBytes.Length);
+                                    }
+                                    catch (IOException ex)
+                                    {
+                                        Console.WriteLine($"{client.Client.RemoteEndPoint}已断开连接：{ex}");
+                                        _ = clients.Remove(client);
+                                        continue;
+                                    }
+                                }
+                                argCount++;
+                                if (argCount > maxCount)
+                                {
+                                    maxCount = argCount;
+                                }
+                                break;
+                        }
+                    }
+                });
+                Console.WriteLine($"{client.Client.RemoteEndPoint}已连接");
             }
         }
     }

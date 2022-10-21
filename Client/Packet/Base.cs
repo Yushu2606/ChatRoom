@@ -1,11 +1,11 @@
-﻿namespace ChatRoom.Packet
+namespace ChatRoom.Packet
 {
     public struct Base<T>
     {
-        public Action Action { get; set; }
+        public ActionType Action { get; set; }
         public T Param { get; set; }
     }
-    public enum Action
+    public enum ActionType
     {
         Unknown,
         Message,

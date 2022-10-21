@@ -1,7 +1,8 @@
-﻿using ChatRoom.Packet;
+using ChatRoom.Packet;
 using ChatRoom.Utils;
 using Newtonsoft.Json;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Management.Instrumentation;
@@ -16,6 +17,9 @@ namespace ChatRoom
     internal class Client
     {
         internal static TcpClient TcpClient { get; private set; }
+
+        internal static string UserName { get; set; }
+
         private static void Main(string[] args)
         {
             // 进程互斥
@@ -43,37 +47,33 @@ namespace ChatRoom
                 goto start;
             }
             Console.Title = $"聊天室：{ip}";
-            new Thread(() =>
+            Dictionary<string, string> beforeOne = new Dictionary<string, string>();
+            Console.Clear();
+            _ = ThreadPool.QueueUserWorkItem((_) =>
             {
-                Console.Clear();
-                SimpleLogger.Info($"已连接至{ip}");
                 while (true)
                 {
-                    NetworkStream stream = TcpClient.GetStream();
-                    if (!stream.CanRead)
-                    {
-                        continue;
-                    }
                     byte[] bytes = new byte[ushort.MaxValue];
                     try
                     {
+                        NetworkStream stream = TcpClient.GetStream();
+                        if (!stream.CanRead)
+                        {
+                            continue;
+                        }
                         _ = stream.Read(bytes, 0, bytes.Length);
                     }
                     catch (IOException ex)
                     {
-                        if (TcpClient.Connected)
-                        {
-                            throw;
-                        }
                         SimpleLogger.Error($"已断开连接：{ex.Message}");
                         int count = 0;
                         while (!TcpClient.Connected)
                         {
                             TcpClient = new TcpClient();
+                            SimpleLogger.Info($"重连中：{++count}");
                             try
                             {
-                                SimpleLogger.Info($"重连中：{++count}");
-                                TcpClient.Connect(ip, 15743);
+                                TcpClient.Connect(ip, 19132);
                             }
                             catch (SocketException ex1)
                             {
@@ -83,32 +83,40 @@ namespace ChatRoom
                         SimpleLogger.Info($"已重连至{ip}");
                         continue;
                     }
-                    string receivedData = Console.OutputEncoding.GetString(bytes).Replace("\0", string.Empty);
-                    Base<object> data = JsonConvert.DeserializeObject<Base<object>>(receivedData);
-                    switch (data.Action)
+                    string receivedString = Encoding.UTF8.GetString(bytes).Replace("\0", string.Empty);
+                    if (string.IsNullOrEmpty(receivedString))
                     {
-                        case Packet.Action.Message:
+                        continue;
+                    }
+                    switch (JsonConvert.DeserializeObject<Base<object>>(receivedString).Action)
+                    {
+                        case ActionType.Message:
+                            Base<Message.Response> data = JsonConvert.DeserializeObject<Base<Message.Response>>(receivedString);
+                            if (beforeOne.ContainsKey(data.Param.UUID) && beforeOne[data.Param.UUID] == data.Param.Message)
                             {
-                                Base<Message.Response> realData = JsonConvert.DeserializeObject<Base<Message.Response>>(receivedData);
-                                ConsoleColor temp = Console.ForegroundColor;
-                                Console.ForegroundColor = ConsoleColor.Blue;
-                                Console.WriteLine($"{realData.Param.UserName}（{realData.Param.UUID}） {realData.Param.DateTime}");
-                                Console.ForegroundColor = ConsoleColor.DarkGray;
-                                Console.WriteLine($"{realData.Param.Message}");
-                                Console.ForegroundColor = temp;
-                                break;
+                                continue;
                             }
+                            ConsoleColor temp = Console.ForegroundColor;
+                            Console.ForegroundColor = ConsoleColor.Blue;
+                            if (!beforeOne.ContainsKey("user") || data.Param.UUID != beforeOne["user"])
+                            {
+                                Console.Write($"{data.Param.UserName}（{data.Param.UUID}） ");
+                            }
+                            Console.WriteLine(data.Param.DateTime);
+                            Console.ForegroundColor = ConsoleColor.DarkGray;
+                            Console.WriteLine(data.Param.Message);
+                            Console.ForegroundColor = temp;
+                            beforeOne[data.Param.UUID] = data.Param.Message;
+                            beforeOne["user"] = data.Param.UUID;
+                            break;
                     }
                 }
-            }).Start();
+            });
+            SimpleLogger.Info($"已连接至{ip}");
             while (true)
             {
                 string line = Console.ReadLine();
-                if (string.IsNullOrEmpty(line))
-                {
-                    continue;
-                }
-                if (!TcpClient.Connected)
+                if (string.IsNullOrEmpty(line) || !TcpClient.Connected)
                 {
                     continue;
                 }
@@ -124,21 +132,21 @@ namespace ChatRoom
                     }
                     continue;
                 }
-                byte[] bytes = Console.InputEncoding.GetBytes(JsonConvert.SerializeObject(new Base<Message.Request>()
-                {
-                    Action = Packet.Action.Message,
-                    Param = new Message.Request()
-                    {
-                        Message = line
-                    }
-                }));
                 NetworkStream stream = TcpClient.GetStream();
                 if (!stream.CanWrite)
                 {
                     continue;
                 }
+                byte[] bytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new Base<Message.Request>()
+                {
+                    Action = ActionType.Message,
+                    Param = new Message.Request()
+                    {
+                        Message = line,
+                        UserName = UserName
+                    }
+                }));
                 stream.Write(bytes, 0, bytes.Length);
-                stream.Flush(); // 刷新缓冲区
             }
         }
     }
