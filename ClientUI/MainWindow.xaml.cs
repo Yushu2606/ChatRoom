@@ -45,7 +45,7 @@ namespace ChatRoom
             }
             catch (SocketException ex)
             {
-                _ = MessageBox.Show($"连接失败：{ex.Message}", "错误");
+                _ = MessageBox.Show($"连接失败：{ex.Message}", "警告", MessageBoxButton.OK, MessageBoxImage.Warning);
                 LoginGrid.IsEnabled = true;
                 return;
             }
