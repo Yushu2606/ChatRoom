@@ -71,7 +71,7 @@ namespace ChatRoom
                     {
                         _ = Dispatcher.Invoke((Action)(() =>
                         {
-                            ShowMessage($"{Environment.NewLine}已断开连接：{ex.Message}");
+                            ChatBox.Text += $"{Environment.NewLine}已断开连接：{ex.Message}";
                             SendButton.IsEnabled = false;
                         }));
                         int count = 0;
@@ -81,20 +81,28 @@ namespace ChatRoom
                             _ = Dispatcher.Invoke((Action)(() =>
                             {
                                 ip = IPBox.Text;
-                                ShowMessage($"{Environment.NewLine}重连中：{++count}");
+                                ChatBox.Text += $"{Environment.NewLine}重连中：{++count}";
+                                ChatBox.ScrollToEnd();
                             }));
                             try
                             {
                                 TcpClient.Connect(ip, 19132);
+                                break;
                             }
                             catch (SocketException ex1)
                             {
-                                _ = Dispatcher.Invoke((Action)(() => ShowMessage($"{Environment.NewLine}重连失败：{ex1.Message}")));
+                                _ = Dispatcher.Invoke((Action)(() =>
+                                {
+                                    ChatBox.Text += $"{Environment.NewLine}重连失败：{ex1.Message}";
+                                    ChatBox.ScrollToEnd();
+                                }));
                             }
+                            Thread.Sleep(1000);
                         }
                         _ = Dispatcher.Invoke((Action)(() =>
                         {
-                            ShowMessage($"{Environment.NewLine}已重连");
+                            ChatBox.Text += $"{Environment.NewLine}已重连";
+                            ChatBox.ScrollToEnd();
                             SendButton.IsEnabled = true;
                         }));
                         continue;
@@ -116,17 +124,18 @@ namespace ChatRoom
                             {
                                 if (!string.IsNullOrEmpty(ChatBox.Text))
                                 {
-                                    ShowMessage(Environment.NewLine);
+                                    ChatBox.Text += Environment.NewLine;
                                 }
                                 if (!beforeOne.ContainsKey("user") || data.Param.UUID != beforeOne["user"])
                                 {
                                     if (!string.IsNullOrEmpty(ChatBox.Text))
                                     {
-                                        ShowMessage(Environment.NewLine);
+                                        ChatBox.Text += Environment.NewLine;
                                     }
-                                    ShowMessage($"{data.Param.UserName}（{data.Param.UUID}） ");
+                                    ChatBox.Text += $"{data.Param.UserName}（{data.Param.UUID}） ";
                                 }
-                                ShowMessage($"{data.Param.DateTime}{Environment.NewLine}{data.Param.Message}");
+                                ChatBox.Text += $"{data.Param.DateTime}{Environment.NewLine}{data.Param.Message}";
+                                ChatBox.ScrollToEnd();
                             }));
                             beforeOne[data.Param.UUID] = data.Param.Message;
                             beforeOne["user"] = data.Param.UUID;
@@ -179,25 +188,25 @@ namespace ChatRoom
             TcpClient.Close();
         }
 
-        private void ShowMessage(string message)
-        {
-            ChatBox.Text += message;
-            ChatBox.ScrollToEnd();
-        }
-
         private void WindowSizeChanged(object sender, SizeChangedEventArgs e)
         {
             if (e.WidthChanged)
             {
                 ChatBox.Width = e.NewSize.Width - 32 < 0 ? 0 : e.NewSize.Width - 32;
                 InputBox.Width = e.NewSize.Width - 137 < 0 ? 0 : e.NewSize.Width - 137;
-                SendButton.Margin = new Thickness(e.NewSize.Width - 122, SendButton.Margin.Top, SendButton.Margin.Right, SendButton.Margin.Bottom);
+                Thickness temp = SendButton.Margin;
+                temp.Left = e.NewSize.Width - 122;
+                SendButton.Margin = temp;
             }
             if (e.HeightChanged)
             {
                 ChatBox.Height = e.NewSize.Height - 140 < 0 ? 0 : e.NewSize.Height - 140;
-                InputBox.Margin = new Thickness(InputBox.Margin.Left, e.NewSize.Height - 96, InputBox.Margin.Right, InputBox.Margin.Bottom);
-                SendButton.Margin = new Thickness(SendButton.Margin.Left, e.NewSize.Height - 96, SendButton.Margin.Right, SendButton.Margin.Bottom);
+                Thickness tempInput = InputBox.Margin;
+                tempInput.Top = e.NewSize.Height - 96;
+                InputBox.Margin = tempInput;
+                Thickness tempSend = SendButton.Margin;
+                tempInput.Top = e.NewSize.Height - 96;
+                SendButton.Margin = tempSend;
             }
         }
     }
