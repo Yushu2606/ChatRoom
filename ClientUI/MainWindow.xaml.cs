@@ -205,7 +205,7 @@ namespace ChatRoom
                 tempInput.Top = e.NewSize.Height - 96;
                 InputBox.Margin = tempInput;
                 Thickness tempSend = SendButton.Margin;
-                tempInput.Top = e.NewSize.Height - 96;
+                tempSend.Top = e.NewSize.Height - 96;
                 SendButton.Margin = tempSend;
             }
         }
