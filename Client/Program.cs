@@ -47,7 +47,8 @@ namespace ChatRoom
                 goto start;
             }
             Console.Title = $"聊天室：{ip}";
-            Dictionary<string, string> beforeOne = new Dictionary<string, string>();
+            Dictionary<int, string> beforeOneMessage = new Dictionary<int, string>();
+            int beforeOneUser = 0;
             Console.Clear();
             _ = ThreadPool.QueueUserWorkItem((_) =>
             {
@@ -88,28 +89,23 @@ namespace ChatRoom
                     {
                         continue;
                     }
-                    switch (JsonConvert.DeserializeObject<Base<object>>(receivedString).Action)
+                    Response data = JsonConvert.DeserializeObject<Response>(receivedString);
+                    if (beforeOneMessage.ContainsKey(data.UUID) && beforeOneMessage[data.UUID] == data.Message)
                     {
-                        case ActionType.Message:
-                            Base<Message.Response> data = JsonConvert.DeserializeObject<Base<Message.Response>>(receivedString);
-                            if (beforeOne.ContainsKey(data.Param.UUID) && beforeOne[data.Param.UUID] == data.Param.Message)
-                            {
-                                continue;
-                            }
-                            ConsoleColor temp = Console.ForegroundColor;
-                            Console.ForegroundColor = ConsoleColor.Blue;
-                            if (!beforeOne.ContainsKey("user") || data.Param.UUID != beforeOne["user"])
-                            {
-                                Console.Write($"{data.Param.UserName}（{data.Param.UUID}） ");
-                            }
-                            Console.WriteLine(data.Param.DateTime);
-                            Console.ForegroundColor = ConsoleColor.DarkGray;
-                            Console.WriteLine(data.Param.Message);
-                            Console.ForegroundColor = temp;
-                            beforeOne[data.Param.UUID] = data.Param.Message;
-                            beforeOne["user"] = data.Param.UUID;
-                            break;
+                        continue;
                     }
+                    ConsoleColor temp = Console.ForegroundColor;
+                    Console.ForegroundColor = ConsoleColor.Blue;
+                    if (data.UUID != beforeOneUser)
+                    {
+                        Console.Write($"{data.UserName}（{data.UUID}） ");
+                    }
+                    Console.WriteLine(data.DateTime);
+                    Console.ForegroundColor = ConsoleColor.DarkGray;
+                    Console.WriteLine(data.Message);
+                    Console.ForegroundColor = temp;
+                    beforeOneMessage[data.UUID] = data.Message;
+                    beforeOneUser = data.UUID;
                 }
             });
             SimpleLogger.Info($"已连接至{ip}");
@@ -137,14 +133,10 @@ namespace ChatRoom
                 {
                     continue;
                 }
-                byte[] bytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new Base<Message.Request>()
+                byte[] bytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new Request()
                 {
-                    Action = ActionType.Message,
-                    Param = new Message.Request()
-                    {
-                        Message = line,
-                        UserName = UserName
-                    }
+                    Message = line,
+                    UserName = UserName
                 }));
                 stream.Write(bytes, 0, bytes.Length);
             }

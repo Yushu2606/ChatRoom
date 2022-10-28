@@ -2,7 +2,6 @@ using ChatRoom.Packet;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Management.Instrumentation;
 using System.Net.Sockets;
@@ -20,8 +19,6 @@ namespace ChatRoom
     public partial class MainWindow : Window
     {
         private static TcpClient TcpClient { get; set; }
-
-        private static Thread Thread { get; set; }
 
         public MainWindow()
         {
@@ -52,8 +49,9 @@ namespace ChatRoom
             LoginGrid.Visibility = Visibility.Hidden;
             RoomGrid.IsEnabled = true;
             RoomGrid.Visibility = Visibility.Visible;
-            Dictionary<string, string> beforeOne = new Dictionary<string, string>();
-            Thread = new Thread(() =>
+            Dictionary<int, string> beforeOneMessage = new Dictionary<int, string>();
+            int beforeOneUser = 0;
+            _ = ThreadPool.QueueUserWorkItem((_) =>
             {
                 while (true)
                 {
@@ -112,38 +110,32 @@ namespace ChatRoom
                     {
                         continue;
                     }
-                    switch (JsonConvert.DeserializeObject<Base<object>>(receivedString).Action)
+                    Response data = JsonConvert.DeserializeObject<Response>(receivedString);
+                    if (beforeOneMessage.ContainsKey(data.UUID) && beforeOneMessage[data.UUID] == data.Message)
                     {
-                        case ActionType.Message:
-                            Base<Message.Response> data = JsonConvert.DeserializeObject<Base<Message.Response>>(receivedString);
-                            if (beforeOne.ContainsKey(data.Param.UUID) && beforeOne[data.Param.UUID] == data.Param.Message)
-                            {
-                                continue;
-                            }
-                            _ = Dispatcher.Invoke((Action)(() =>
-                            {
-                                if (!string.IsNullOrEmpty(ChatBox.Text))
-                                {
-                                    ChatBox.Text += Environment.NewLine;
-                                }
-                                if (!beforeOne.ContainsKey("user") || data.Param.UUID != beforeOne["user"])
-                                {
-                                    if (!string.IsNullOrEmpty(ChatBox.Text))
-                                    {
-                                        ChatBox.Text += Environment.NewLine;
-                                    }
-                                    ChatBox.Text += $"{data.Param.UserName}（{data.Param.UUID}） ";
-                                }
-                                ChatBox.Text += $"{data.Param.DateTime}{Environment.NewLine}{data.Param.Message}";
-                                ChatBox.ScrollToEnd();
-                            }));
-                            beforeOne[data.Param.UUID] = data.Param.Message;
-                            beforeOne["user"] = data.Param.UUID;
-                            break;
+                        continue;
                     }
+                    _ = Dispatcher.Invoke((Action)(() =>
+                    {
+                        if (!string.IsNullOrEmpty(ChatBox.Text))
+                        {
+                            ChatBox.Text += Environment.NewLine;
+                        }
+                        if (data.UUID != beforeOneUser)
+                        {
+                            if (!string.IsNullOrEmpty(ChatBox.Text))
+                            {
+                                ChatBox.Text += Environment.NewLine;
+                            }
+                            ChatBox.Text += $"{data.UserName}（{data.UUID}） ";
+                        }
+                        ChatBox.Text += $"{data.DateTime}{Environment.NewLine}{data.Message}";
+                        ChatBox.ScrollToEnd();
+                    }));
+                    beforeOneMessage[data.UUID] = data.Message;
+                    beforeOneUser = data.UUID;
                 }
             });
-            Thread.Start();
         }
 
         private void Send(object sender, RoutedEventArgs e)
@@ -157,14 +149,10 @@ namespace ChatRoom
             {
                 return;
             }
-            byte[] bytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new Base<Message.Request>()
+            byte[] bytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new Request()
             {
-                Action = ActionType.Message,
-                Param = new Message.Request()
-                {
-                    Message = InputBox.Text,
-                    UserName = NameBox.Text
-                }
+                Message = InputBox.Text,
+                UserName = NameBox.Text
             }));
             stream.Write(bytes, 0, bytes.Length);
             InputBox.Text = string.Empty;
@@ -176,16 +164,6 @@ namespace ChatRoom
             {
                 Send(default, default);
             }
-        }
-
-        private void WindowClosing(object sender, CancelEventArgs e)
-        {
-            Thread.Abort();
-            if (TcpClient is null || !TcpClient.Connected)
-            {
-                return;
-            }
-            TcpClient.Close();
         }
 
         private void WindowSizeChanged(object sender, SizeChangedEventArgs e)

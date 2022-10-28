@@ -4,7 +4,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="聊天室" Height="450" Width="800" Closing="WindowClosing" FontFamily="Segoe UI Emoji" SizeChanged="WindowSizeChanged">
+        Title="聊天室" Height="450" Width="800" FontFamily="Segoe UI Emoji" SizeChanged="WindowSizeChanged">
     <Grid>
         <Grid x:Name="LoginGrid">
             <TextBox x:Name="IPBox" Height="24" Width="100" Margin="0,185,0,0" HorizontalAlignment="Center" VerticalAlignment="Top"/>

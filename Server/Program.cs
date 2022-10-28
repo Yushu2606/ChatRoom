@@ -14,7 +14,7 @@ namespace ChatRoom
     {
         private static void Main()
         {
-            Dictionary<TcpClient, string> clients = new Dictionary<TcpClient, string>();
+            Dictionary<TcpClient, int> clients = new Dictionary<TcpClient, int>();
             int argCount = 0, maxCount = 0;
             System.Timers.Timer timer = new System.Timers.Timer()
             {
@@ -22,7 +22,7 @@ namespace ChatRoom
             };
             timer.Elapsed += (_, _e) =>
             {
-                Console.Title = $"聊天室服务器   {clients.Count}   {argCount}（{maxCount}）";
+                Console.Title = $"聊天室服务器　　{argCount}/{maxCount}";
                 argCount = 0;
             };
             timer.Start();
@@ -33,7 +33,7 @@ namespace ChatRoom
             {
                 TcpClient client = listenner.AcceptTcpClient();
                 string clientIP = client.Client.RemoteEndPoint.ToString().Substring(0, client.Client.RemoteEndPoint.ToString().LastIndexOf(':'));
-                clients.Add(client, clientIP.GetHashCode().ToString("x"));
+                clients.Add(client, clientIP.GetHashCode());
                 _ = ThreadPool.QueueUserWorkItem((_) =>
                 {
                     while (true)
@@ -59,45 +59,36 @@ namespace ChatRoom
                         {
                             continue;
                         }
-                        switch (JsonConvert.DeserializeObject<Base<object>>(receivedString).Action)
+                        Request data = JsonConvert.DeserializeObject<Request>(receivedString);
+                        byte[] packetBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new Response()
                         {
-                            case ActionType.Message:
-                                Base<Message.Request> data = JsonConvert.DeserializeObject<Base<Message.Request>>(receivedString);
-                                byte[] packetBytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(new Base<Message.Response>()
+                            UUID = clients[client],
+                            DateTime = DateTime.Now,
+                            Message = data.Message,
+                            UserName = data.UserName
+                        }));
+                        foreach (TcpClient otherClient in clients.Keys)
+                        {
+                            try
+                            {
+                                NetworkStream stream = otherClient.GetStream();
+                                if (!stream.CanWrite)
                                 {
-                                    Action = ActionType.Message,
-                                    Param = new Message.Response()
-                                    {
-                                        DateTime = DateTime.Now,
-                                        Message = data.Param.Message,
-                                        UserName = data.Param.UserName,
-                                        UUID = clients[client]
-                                    }
-                                }));
-                                foreach (TcpClient otherClient in clients.Keys)
-                                {
-                                    try
-                                    {
-                                        NetworkStream stream = otherClient.GetStream();
-                                        if (!stream.CanWrite)
-                                        {
-                                            continue;
-                                        }
-                                        stream.Write(packetBytes, 0, packetBytes.Length);
-                                    }
-                                    catch (IOException ex)
-                                    {
-                                        Console.WriteLine($"{client.Client.RemoteEndPoint}已断开连接：{ex}");
-                                        _ = clients.Remove(client);
-                                        continue;
-                                    }
+                                    continue;
                                 }
-                                argCount++;
-                                if (argCount > maxCount)
-                                {
-                                    maxCount = argCount;
-                                }
-                                break;
+                                stream.Write(packetBytes, 0, packetBytes.Length);
+                            }
+                            catch (IOException ex)
+                            {
+                                Console.WriteLine($"{client.Client.RemoteEndPoint}已断开连接：{ex}");
+                                _ = clients.Remove(client);
+                                continue;
+                            }
+                        }
+                        argCount++;
+                        if (argCount > maxCount)
+                        {
+                            maxCount = argCount;
                         }
                     }
                 });
