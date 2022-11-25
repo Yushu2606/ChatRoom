@@ -170,21 +170,12 @@ namespace ChatRoom
         {
             if (e.WidthChanged)
             {
-                ChatBox.Width = e.NewSize.Width - 32 < 0 ? 0 : e.NewSize.Width - 32;
-                InputBox.Width = e.NewSize.Width - 137 < 0 ? 0 : e.NewSize.Width - 137;
-                Thickness temp = SendButton.Margin;
-                temp.Left = e.NewSize.Width - 122;
-                SendButton.Margin = temp;
+                ChatBox.Width = e.NewSize.Width - 36 < 0 ? 0 : e.NewSize.Width - 36;
+                InputBox.Width = e.NewSize.Width - 141 < 0 ? 0 : e.NewSize.Width - 141;
             }
             if (e.HeightChanged)
             {
                 ChatBox.Height = e.NewSize.Height - 140 < 0 ? 0 : e.NewSize.Height - 140;
-                Thickness tempInput = InputBox.Margin;
-                tempInput.Top = e.NewSize.Height - 96;
-                InputBox.Margin = tempInput;
-                Thickness tempSend = SendButton.Margin;
-                tempSend.Top = e.NewSize.Height - 96;
-                SendButton.Margin = tempSend;
             }
         }
     }

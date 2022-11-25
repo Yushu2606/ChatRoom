@@ -7,14 +7,14 @@
         Title="聊天室" Height="450" Width="800" FontFamily="Segoe UI Emoji" SizeChanged="WindowSizeChanged">
     <Grid>
         <Grid x:Name="LoginGrid">
-            <TextBox x:Name="IPBox" Height="24" Width="100" Margin="0,185,0,0" HorizontalAlignment="Center" VerticalAlignment="Top"/>
-            <Button Content="连接" Height="24" Width="50" Margin="0,225,0,0" Click="Connect" HorizontalAlignment="Center" VerticalAlignment="Top"/>
+            <TextBox x:Name="IPBox" Height="24" Width="100" Margin="0,-35,0,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Button Content="连接" Height="24" Width="50" Margin="0,35,0,0" Click="Connect" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Grid>
         <Grid x:Name="RoomGrid" IsEnabled="False" Visibility="Hidden">
             <TextBox x:Name="NameBox" Height="24" Width="100" Margin="10,10,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"/>
             <TextBox x:Name="ChatBox" Height="310" Width="768" Margin="10,39,0,0" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" IsReadOnly="True" VerticalScrollBarVisibility="Auto"/>
-            <TextBox x:Name="InputBox" Height="48" Width="663" Margin="10,362,0,0" KeyDown="EnterButtonDown" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-            <Button x:Name="SendButton" Content="发送" Height="48" Width="100" Margin="678,362,0,0" Click="Send" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+            <TextBox x:Name="InputBox" Height="48" Width="675" Margin="0,0,115,10" KeyDown="EnterButtonDown" TextWrapping="Wrap" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
+            <Button x:Name="SendButton" Content="发送" Height="48" Width="100" Margin="0,0,10,10" Click="Send" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
         </Grid>
     </Grid>
 </Window>
