@@ -47,8 +47,8 @@ namespace ChatRoom
                 goto start;
             }
             Console.Title = $"聊天室：{ip}";
-            Dictionary<int, string> beforeOneMessage = new Dictionary<int, string>();
-            int beforeOneUser = 0;
+            Dictionary<int, string> lastMessage = new Dictionary<int, string>();
+            int lastOne = 0;
             Console.Clear();
             _ = ThreadPool.QueueUserWorkItem((_) =>
             {
@@ -90,13 +90,13 @@ namespace ChatRoom
                         continue;
                     }
                     Response data = JsonConvert.DeserializeObject<Response>(receivedString);
-                    if (beforeOneMessage.ContainsKey(data.UUID) && beforeOneMessage[data.UUID] == data.Message)
+                    if (lastMessage.ContainsKey(data.UUID) && lastMessage[data.UUID] == data.Message)
                     {
                         continue;
                     }
                     ConsoleColor temp = Console.ForegroundColor;
                     Console.ForegroundColor = ConsoleColor.Blue;
-                    if (data.UUID != beforeOneUser)
+                    if (data.UUID != lastOne)
                     {
                         Console.Write($"{data.UserName}（{data.UUID}） ");
                     }
@@ -104,8 +104,8 @@ namespace ChatRoom
                     Console.ForegroundColor = ConsoleColor.DarkGray;
                     Console.WriteLine(data.Message);
                     Console.ForegroundColor = temp;
-                    beforeOneMessage[data.UUID] = data.Message;
-                    beforeOneUser = data.UUID;
+                    lastMessage[data.UUID] = data.Message;
+                    lastOne = data.UUID;
                 }
             });
             SimpleLogger.Info($"已连接至{ip}");

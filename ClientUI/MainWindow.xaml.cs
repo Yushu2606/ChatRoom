@@ -49,8 +49,8 @@ namespace ChatRoom
             LoginGrid.Visibility = Visibility.Hidden;
             RoomGrid.IsEnabled = true;
             RoomGrid.Visibility = Visibility.Visible;
-            Dictionary<int, string> beforeOneMessage = new Dictionary<int, string>();
-            int beforeOneUser = 0;
+            Dictionary<int, string> lastMessage = new Dictionary<int, string>();
+            int lastOne = 0;
             _ = ThreadPool.QueueUserWorkItem((_) =>
             {
                 while (true)
@@ -111,7 +111,7 @@ namespace ChatRoom
                         continue;
                     }
                     Response data = JsonConvert.DeserializeObject<Response>(receivedString);
-                    if (beforeOneMessage.ContainsKey(data.UUID) && beforeOneMessage[data.UUID] == data.Message)
+                    if (lastMessage.ContainsKey(data.UUID) && lastMessage[data.UUID] == data.Message)
                     {
                         continue;
                     }
@@ -121,7 +121,7 @@ namespace ChatRoom
                         {
                             ChatBox.Text += Environment.NewLine;
                         }
-                        if (data.UUID != beforeOneUser)
+                        if (data.UUID != lastOne)
                         {
                             if (!string.IsNullOrEmpty(ChatBox.Text))
                             {
@@ -132,8 +132,8 @@ namespace ChatRoom
                         ChatBox.Text += $"{data.DateTime}{Environment.NewLine}{data.Message}";
                         ChatBox.ScrollToEnd();
                     }));
-                    beforeOneMessage[data.UUID] = data.Message;
-                    beforeOneUser = data.UUID;
+                    lastMessage[data.UUID] = data.Message;
+                    lastOne = data.UUID;
                 }
             });
         }
