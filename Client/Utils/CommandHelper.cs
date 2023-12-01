@@ -1,6 +1,6 @@
 namespace ChatRoom.Utils;
 
-internal static class Command
+internal static class CommandHelper
 {
     internal static Dictionary<string, CommandData> Commands { get; } = new()
     {
@@ -47,30 +47,30 @@ internal static class Command
     internal static void Process(IList<string> args, Dictionary<string, CommandData> commands, int deep = 1)
     {
         string mainCommand = args[deep - 1].ToUpper();
-        if (!commands.ContainsKey(mainCommand))
+        if (!commands.TryGetValue(mainCommand, out CommandData command))
         {
             throw new ArgumentException($"未知的命令：{args[deep - 1]}");
         }
-        if (commands[mainCommand].Action is not null)
+        if (command.Action is not null)
         {
             List<string> newArgs = new(args);
             if (args.Count - deep > 0)
             {
                 newArgs.RemoveRange(0, deep);
             }
-            commands[mainCommand].Action(newArgs);
+            command.Action(newArgs);
         }
-        if (commands[mainCommand].SubCommands is not null)
+        if (command.SubCommands is not null)
         {
             if (args.Count <= deep)
             {
-                foreach ((string command, CommandData commandData) in commands[mainCommand].SubCommands)
+                foreach ((string commandName, CommandData commandData) in command.SubCommands)
                 {
-                    Console.WriteLine($"  {command.ToLower()}\t{commandData.Description}");
+                    Console.WriteLine($"  {commandName.ToLower()}\t{commandData.Description}");
                 }
                 return;
             }
-            Process(args, commands[mainCommand].SubCommands, deep + 1);
+            Process(args, command.SubCommands, deep + 1);
         }
     }
 }

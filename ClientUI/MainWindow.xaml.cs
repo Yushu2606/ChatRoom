@@ -1,9 +1,6 @@
-using ChatRoom.Packet;
 using System.IO;
 using System.Net.Sockets;
 using System.Reflection;
-using System.Text;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
 
@@ -18,7 +15,7 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
-        _ = new Mutex(true, Assembly.GetExecutingAssembly().GetName().Name, out bool isNotRunning);
+        using Mutex _ = new(true, Assembly.GetExecutingAssembly().GetName().Name, out bool isNotRunning);
         if (!isNotRunning)
         {
             MessageBox.Show("你只能同时运行一个聊天室实例！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -45,13 +42,15 @@ public partial class MainWindow : Window
         LoginGrid.Visibility = Visibility.Hidden;
         RoomGrid.IsEnabled = true;
         RoomGrid.Visibility = Visibility.Visible;
-        Dictionary<int, string> lastMessage = new();
+        Dictionary<int, string> lastMessage = [];
         int lastOne = 0;
         ThreadPool.QueueUserWorkItem((_) =>
         {
             while (true)
             {
-                byte[] bytes = new byte[ushort.MaxValue];
+                int uuid;
+                long ticks;
+                string message, userName;
                 try
                 {
                     NetworkStream stream = TcpClient.GetStream();
@@ -59,7 +58,11 @@ public partial class MainWindow : Window
                     {
                         continue;
                     }
-                    stream.Read(bytes, 0, bytes.Length);
+                    BinaryReader reader = new(stream);
+                    uuid = reader.ReadInt32();
+                    ticks = reader.ReadInt64();
+                    message = reader.ReadString();
+                    userName = reader.ReadString();
                 }
                 catch (IOException ex)
                 {
@@ -101,13 +104,7 @@ public partial class MainWindow : Window
                     });
                     continue;
                 }
-                string receivedString = Encoding.UTF8.GetString(bytes).Replace("\0", string.Empty);
-                if (string.IsNullOrEmpty(receivedString))
-                {
-                    continue;
-                }
-                Response data = JsonSerializer.Deserialize<Response>(receivedString);
-                if (lastMessage.TryGetValue(data.UUID, out string value) && value == data.Message)
+                if (lastMessage.TryGetValue(uuid, out string value) && value == message)
                 {
                     continue;
                 }
@@ -117,19 +114,19 @@ public partial class MainWindow : Window
                     {
                         ChatBox.Text += Environment.NewLine;
                     }
-                    if (data.UUID != lastOne)
+                    if (uuid != lastOne)
                     {
                         if (!string.IsNullOrEmpty(ChatBox.Text))
                         {
                             ChatBox.Text += Environment.NewLine;
                         }
-                        ChatBox.Text += $"{data.UserName}（{data.UUID}） ";
+                        ChatBox.Text += $"{userName}（{uuid}） ";
                     }
-                    ChatBox.Text += $"{data.DateTime}{Environment.NewLine}{data.Message}";
+                    ChatBox.Text += $"{new DateTime(ticks)}{Environment.NewLine}{message}";
                     ChatBox.ScrollToEnd();
                 });
-                lastMessage[data.UUID] = data.Message;
-                lastOne = data.UUID;
+                lastMessage[uuid] = message;
+                lastOne = uuid;
             }
         });
     }
@@ -145,12 +142,9 @@ public partial class MainWindow : Window
         {
             return;
         }
-        byte[] bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new Request()
-        {
-            Message = InputBox.Text,
-            UserName = NameBox.Text
-        }));
-        stream.Write(bytes, 0, bytes.Length);
+        BinaryWriter writer = new(stream);
+        writer.Write(InputBox.Text);
+        writer.Write(NameBox.Text);
         InputBox.Text = string.Empty;
     }
 

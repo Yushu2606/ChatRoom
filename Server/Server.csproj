@@ -4,8 +4,7 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <PublishSingleFile>true</PublishSingleFile>
-    <PublishTrimmed>true</PublishTrimmed>
+    <PublishAot>true</PublishAot>
     <RootNamespace>ChatRoom</RootNamespace>
     <AssemblyName>ChatRoom.$(MSBuildProjectName)</AssemblyName>
     <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
