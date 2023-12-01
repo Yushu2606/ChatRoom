@@ -8,7 +8,7 @@
     <Grid>
         <Grid x:Name="LoginGrid">
             <TextBox x:Name="IPBox" Height="24" Width="100" Margin="0,-35,0,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            <Button Content="连接" Height="24" Width="50" Margin="0,35,0,0" Click="Connect" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Button Content="连接" Height="24" Width="50" Margin="0,35,0,0" Click="ConnectAsync" HorizontalAlignment="Center" VerticalAlignment="Center"/>
         </Grid>
         <Grid x:Name="RoomGrid" IsEnabled="False" Visibility="Hidden">
             <TextBox x:Name="NameBox" Height="24" Width="100" Margin="10,10,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"/>

@@ -11,7 +11,7 @@ namespace ChatRoom;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private static TcpClient TcpClient { get; set; }
+    private static Socket Client { get; set; }
 
     public MainWindow()
     {
@@ -24,14 +24,14 @@ public partial class MainWindow : Window
         InitializeComponent();
     }
 
-    private void Connect(object sender, RoutedEventArgs e)
+    private async void ConnectAsync(object sender, RoutedEventArgs e)
     {
         string ip = IPBox.Text;
         LoginGrid.IsEnabled = false;
-        TcpClient = new();
+        Client = new(SocketType.Stream, ProtocolType.Tcp);
         try
         {
-            TcpClient.Connect(ip, 19132);
+            await Client.ConnectAsync(ip, 19132);
         }
         catch (SocketException ex)
         {
@@ -44,7 +44,7 @@ public partial class MainWindow : Window
         RoomGrid.Visibility = Visibility.Visible;
         Dictionary<int, string> lastMessage = [];
         int lastOne = 0;
-        ThreadPool.QueueUserWorkItem((_) =>
+        ThreadPool.QueueUserWorkItem(async (_) =>
         {
             while (true)
             {
@@ -53,7 +53,7 @@ public partial class MainWindow : Window
                 string message, userName;
                 try
                 {
-                    NetworkStream stream = TcpClient.GetStream();
+                    NetworkStream stream = new(Client);
                     if (!stream.CanRead)
                     {
                         continue;
@@ -66,40 +66,26 @@ public partial class MainWindow : Window
                 }
                 catch (IOException ex)
                 {
-                    Dispatcher.Invoke(() =>
+                    await Dispatcher.InvokeAsync(() =>
                     {
-                        ChatBox.Text += $"{Environment.NewLine}已断开连接：{ex.Message}";
+                        ChatBox.Text += $"{Environment.NewLine}已断开连接，重连中：{ex.Message}";
                         SendButton.IsEnabled = false;
                     });
-                    int count = 0;
-                    while (!TcpClient.Connected)
+                    while (!Client.Connected)
                     {
-                        TcpClient = new();
-                        Dispatcher.Invoke(() =>
-                        {
-                            ip = IPBox.Text;
-                            ChatBox.Text += $"{Environment.NewLine}重连中：{++count}";
-                            ChatBox.ScrollToEnd();
-                        });
+                        Client = new(SocketType.Stream, ProtocolType.Tcp);
                         try
                         {
-                            TcpClient.Connect(ip, 19132);
+                            await Client.ConnectAsync(ip, 19132);
                             break;
                         }
-                        catch (SocketException ex1)
+                        catch (SocketException)
                         {
-                            Dispatcher.Invoke(() =>
-                            {
-                                ChatBox.Text += $"{Environment.NewLine}重连失败：{ex1.Message}";
-                                ChatBox.ScrollToEnd();
-                            });
                         }
-                        Thread.Sleep(1000);
                     }
-                    Dispatcher.Invoke(() =>
+                    await Dispatcher.InvokeAsync(() =>
                     {
                         ChatBox.Text += $"{Environment.NewLine}已重连";
-                        ChatBox.ScrollToEnd();
                         SendButton.IsEnabled = true;
                     });
                     continue;
@@ -108,8 +94,13 @@ public partial class MainWindow : Window
                 {
                     continue;
                 }
-                Dispatcher.Invoke(() =>
+                await Dispatcher.InvokeAsync(() =>
                 {
+                    bool needScroll = false;
+                    if (ChatBox.HorizontalOffset >= ChatBox.ViewportHeight)
+                    {
+                        needScroll = true;
+                    }
                     if (!string.IsNullOrEmpty(ChatBox.Text))
                     {
                         ChatBox.Text += Environment.NewLine;
@@ -123,7 +114,10 @@ public partial class MainWindow : Window
                         ChatBox.Text += $"{userName}（{uuid}） ";
                     }
                     ChatBox.Text += $"{new DateTime(ticks)}{Environment.NewLine}{message}";
-                    ChatBox.ScrollToEnd();
+                    if (needScroll)
+                    {
+                        ChatBox.ScrollToEnd();
+                    }
                 });
                 lastMessage[uuid] = message;
                 lastOne = uuid;
@@ -137,7 +131,7 @@ public partial class MainWindow : Window
         {
             return;
         }
-        NetworkStream stream = TcpClient.GetStream();
+        NetworkStream stream = new(Client);
         if (!stream.CanWrite)
         {
             return;

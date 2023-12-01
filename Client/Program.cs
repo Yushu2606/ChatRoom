@@ -11,13 +11,11 @@ internal class Client
 {
     internal static string UserName { get; set; }
 
-    private static int Main(string[] args)
+    private static async Task<int> Main(string[] args)
     {
-        Option<bool> multiOption = new(
-            name: "--multi",
-            description: "运行重复运行实例。");
+        Option<bool> multiOption = new(name: "--multi", description: "允许重复运行实例。");
         RootCommand rootCommand = [multiOption];
-        rootCommand.SetHandler((multi) =>
+        rootCommand.SetHandler(async (multi) =>
         {
             // 进程互斥
             using Mutex _ = new(true, Assembly.GetExecutingAssembly().GetName().Name, out bool isNotRunning);
@@ -25,12 +23,12 @@ internal class Client
             {
                 throw new EntryPointNotFoundException("你只能同时运行一个聊天室实例！");
             }
-            ChatMain();
+            await ChatMainAsync();
         }, multiOption);
-        return rootCommand.Invoke(args);
+        return await rootCommand.InvokeAsync(args);
     }
 
-    private static void ChatMain()
+    private static async Task ChatMainAsync()
     {
         // 修复中文输入输出
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -39,20 +37,20 @@ internal class Client
         using ILoggerFactory factory = LoggerFactory.Create(builder => builder.AddConsole());
         ILogger logger = factory.CreateLogger("聊天室");
         Console.Title = "聊天室";
-        TcpClient TcpClient;
+        Socket client;
         string ip;
         while (true)
         {
-            TcpClient = new();
+            client = new(SocketType.Stream, ProtocolType.Tcp);
             Console.Write("请输入服务器地址：");
             ip = Console.ReadLine();
             try
             {
-                TcpClient.Connect(ip, 19132);
+                await client.ConnectAsync(ip, 19132);
             }
             catch (SocketException ex)
             {
-                logger.LogError("连接至{IP}失败：{Message}", ip, ex.Message);
+                logger.LogError("连接失败：{Message}", ex.Message);
                 continue;
             }
             break;
@@ -61,7 +59,7 @@ internal class Client
         Dictionary<int, string> lastMessage = [];
         int lastOne = 0;
         Console.Clear();
-        ThreadPool.QueueUserWorkItem((_) =>
+        ThreadPool.QueueUserWorkItem(async (_) =>
         {
             while (true)
             {
@@ -70,7 +68,7 @@ internal class Client
                 string message, userName;
                 try
                 {
-                    NetworkStream stream = TcpClient.GetStream();
+                    NetworkStream stream = new(client);
                     if (!stream.CanRead)
                     {
                         continue;
@@ -83,22 +81,19 @@ internal class Client
                 }
                 catch (IOException ex)
                 {
-                    logger.LogError("已断开连接：{Message}", ex.Message);
-                    int count = 0;
-                    while (!TcpClient.Connected)
+                    logger.LogError("连接中断，恢复中：{Message}", ex.Message);
+                    while (!client.Connected)
                     {
-                        TcpClient = new();
-                        logger.LogInformation("重连中：{Count}", ++count);
+                        client = new(SocketType.Stream, ProtocolType.Tcp);
                         try
                         {
-                            TcpClient.Connect(ip, 19132);
+                            await client.ConnectAsync(ip, 19132);
                         }
-                        catch (SocketException ex1)
+                        catch (SocketException)
                         {
-                            logger.LogError("重连至{IP}失败：{Message}", ip, ex1.Message);
                         }
                     }
-                    logger.LogInformation("已重连至{IP}", ip);
+                    logger.LogInformation("连接已恢复");
                     continue;
                 }
                 if (lastMessage.TryGetValue(uuid, out string value) && value == message)
@@ -119,11 +114,11 @@ internal class Client
                 lastOne = uuid;
             }
         });
-        logger.LogInformation("已连接至{IP}", ip);
+        logger.LogInformation("连接已建立");
         while (true)
         {
             string line = Console.ReadLine();
-            if (string.IsNullOrEmpty(line) || !TcpClient.Connected)
+            if (string.IsNullOrEmpty(line) || !client.Connected)
             {
                 continue;
             }
@@ -139,7 +134,7 @@ internal class Client
                 }
                 continue;
             }
-            NetworkStream stream = TcpClient.GetStream();
+            NetworkStream stream = new(client);
             if (!stream.CanWrite)
             {
                 continue;

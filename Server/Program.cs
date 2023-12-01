@@ -1,13 +1,14 @@
 using System.Net;
 using System.Net.Sockets;
 
-Dictionary<TcpClient, int> clients = [];
-using TcpListener listenner = new(IPAddress.Any, 19132);
-listenner.Start();
+Dictionary<Socket, int> clients = [];
+using Socket listenner = new(SocketType.Stream, ProtocolType.Tcp);
+listenner.Bind(new IPEndPoint(IPAddress.Any, 19132));
+listenner.Listen();
 while (true)
 {
-    TcpClient client = listenner.AcceptTcpClient();
-    string clientIP = client.Client.RemoteEndPoint.ToString()[..client.Client.RemoteEndPoint.ToString().LastIndexOf(':')];
+    Socket client = await listenner.AcceptAsync();
+    string clientIP = client.RemoteEndPoint.ToString()[..client.RemoteEndPoint.ToString().LastIndexOf(':')];
     clients.Add(client, clientIP.GetHashCode());
     ThreadPool.QueueUserWorkItem((_) =>
     {
@@ -16,7 +17,7 @@ while (true)
             string message, userName;
             try
             {
-                NetworkStream stream = client.GetStream();
+                NetworkStream stream = new(client);
                 if (!stream.CanRead)
                 {
                     continue;
@@ -30,11 +31,11 @@ while (true)
                 clients.Remove(client);
                 return;
             }
-            foreach (TcpClient otherClient in clients.Keys)
+            foreach (Socket otherClient in clients.Keys)
             {
                 try
                 {
-                    NetworkStream stream = otherClient.GetStream();
+                    NetworkStream stream = new(otherClient);
                     if (!stream.CanWrite)
                     {
                         continue;
