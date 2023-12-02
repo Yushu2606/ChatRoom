@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Windows;
@@ -31,7 +32,7 @@ public partial class MainWindow : Window
         Client = new(SocketType.Stream, ProtocolType.Tcp);
         try
         {
-            await Client.ConnectAsync(ip, 19132);
+            await Client.ConnectAsync(IPAddress.TryParse(ip, out IPAddress address) ? address : IPAddress.Loopback, 19132);
         }
         catch (SocketException ex)
         {
@@ -76,7 +77,7 @@ public partial class MainWindow : Window
                         Client = new(SocketType.Stream, ProtocolType.Tcp);
                         try
                         {
-                            await Client.ConnectAsync(ip, 19132);
+                            await Client.ConnectAsync(IPAddress.TryParse(ip, out IPAddress address) ? address : IPAddress.Loopback, 19132);
                             break;
                         }
                         catch (SocketException)
@@ -147,19 +148,6 @@ public partial class MainWindow : Window
         if (e.Key is Key.Enter && SendButton.IsEnabled)
         {
             Send(default, default);
-        }
-    }
-
-    private void WindowSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (e.WidthChanged)
-        {
-            ChatBox.Width = e.NewSize.Width - 36 < 0 ? 0 : e.NewSize.Width - 36;
-            InputBox.Width = e.NewSize.Width - 141 < 0 ? 0 : e.NewSize.Width - 141;
-        }
-        if (e.HeightChanged)
-        {
-            ChatBox.Height = e.NewSize.Height - 140 < 0 ? 0 : e.NewSize.Height - 140;
         }
     }
 }

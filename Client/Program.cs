@@ -1,6 +1,7 @@
 using ChatRoom.Utils;
 using Microsoft.Extensions.Logging;
 using System.CommandLine;
+using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
@@ -46,7 +47,7 @@ internal class Client
             ip = Console.ReadLine();
             try
             {
-                await client.ConnectAsync(ip, 19132);
+                await client.ConnectAsync(IPAddress.TryParse(ip, out IPAddress address) ? address : IPAddress.Loopback, 19132);
             }
             catch (SocketException ex)
             {
@@ -87,7 +88,7 @@ internal class Client
                         client = new(SocketType.Stream, ProtocolType.Tcp);
                         try
                         {
-                            await client.ConnectAsync(ip, 19132);
+                            await client.ConnectAsync(IPAddress.TryParse(ip, out IPAddress address) ? address : IPAddress.Loopback, 19132);
                         }
                         catch (SocketException)
                         {
