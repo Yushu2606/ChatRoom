@@ -1,15 +1,14 @@
 using System.Net;
 using System.Net.Sockets;
 
-Dictionary<Socket, int> clients = [];
+List<Socket> clients = [];
 using Socket listenner = new(SocketType.Stream, ProtocolType.Tcp);
 listenner.Bind(new IPEndPoint(IPAddress.Any, 19132));
 listenner.Listen();
 while (true)
 {
     Socket client = await listenner.AcceptAsync();
-    string clientIP = client.RemoteEndPoint.ToString()[..client.RemoteEndPoint.ToString().LastIndexOf(':')];
-    clients.Add(client, clientIP.GetHashCode());
+    clients.Add(client);
     ThreadPool.QueueUserWorkItem((_) =>
     {
         while (true)
@@ -31,7 +30,7 @@ while (true)
                 clients.Remove(client);
                 return;
             }
-            foreach (Socket otherClient in clients.Keys)
+            foreach (Socket otherClient in clients)
             {
                 try
                 {
@@ -41,7 +40,7 @@ while (true)
                         continue;
                     }
                     BinaryWriter writer = new(stream);
-                    writer.Write(clients[client]);
+                    writer.Write(client.RemoteEndPoint.ToString()[..client.RemoteEndPoint.ToString().LastIndexOf(':')].GetHashCode());
                     writer.Write(DateTime.Now.Ticks);
                     writer.Write(message);
                     writer.Write(userName);
