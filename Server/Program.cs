@@ -2,14 +2,14 @@ using System.Net;
 using System.Net.Sockets;
 
 List<Socket> clients = [];
-using Socket listenner = new(SocketType.Stream, ProtocolType.Tcp);
-listenner.Bind(new IPEndPoint(IPAddress.Any, 19132));
-listenner.Listen();
+using Socket listener = new(SocketType.Stream, ProtocolType.Tcp);
+listener.Bind(new IPEndPoint(IPAddress.Any, 19132));
+listener.Listen();
 while (true)
 {
-    Socket client = await listenner.AcceptAsync();
+    Socket client = await listener.AcceptAsync();
     clients.Add(client);
-    ThreadPool.QueueUserWorkItem((_) =>
+    await Task.Factory.StartNew(_ =>
     {
         while (true)
         {
@@ -21,6 +21,7 @@ while (true)
                 {
                     continue;
                 }
+
                 BinaryReader reader = new(stream);
                 message = reader.ReadString();
                 userName = reader.ReadString();
@@ -30,6 +31,7 @@ while (true)
                 clients.Remove(client);
                 return;
             }
+
             foreach (Socket otherClient in clients)
             {
                 try
@@ -39,8 +41,25 @@ while (true)
                     {
                         continue;
                     }
+
                     BinaryWriter writer = new(stream);
-                    writer.Write(client.RemoteEndPoint.ToString()[..client.RemoteEndPoint.ToString().LastIndexOf(':')].GetHashCode());
+                    if (client.RemoteEndPoint is not null)
+                    {
+                        string? ip = client.RemoteEndPoint.ToString();
+                        if (!string.IsNullOrWhiteSpace(ip))
+                        {
+                            writer.Write(ip[..ip.LastIndexOf(':')].GetHashCode());
+                        }
+                        else
+                        {
+                            writer.Write(Convert.ToInt32(client.Handle).ToString());
+                        }
+                    }
+                    else
+                    {
+                        writer.Write(Convert.ToInt32(client.Handle).ToString());
+                    }
+
                     writer.Write(DateTime.Now.Ticks);
                     writer.Write(message);
                     writer.Write(userName);
@@ -48,9 +67,8 @@ while (true)
                 catch (IOException)
                 {
                     clients.Remove(client);
-                    continue;
                 }
             }
         }
-    });
+    }, TaskContinuationOptions.LongRunning);
 }

@@ -8,15 +8,15 @@ using System.Text;
 
 namespace ChatRoom;
 
-internal class Client
+internal static class Client
 {
-    internal static string UserName { get; set; }
+    internal static string? UserName { get; set; }
 
     private static async Task<int> Main(string[] args)
     {
-        Option<bool> multiOption = new(name: "--multi", description: "允许重复运行实例。");
+        Option<bool> multiOption = new("--multi", "允许重复运行实例。");
         RootCommand rootCommand = [multiOption];
-        rootCommand.SetHandler(async (multi) =>
+        rootCommand.SetHandler(async multi =>
         {
             // 进程互斥
             using Mutex _ = new(true, Assembly.GetExecutingAssembly().GetName().Name, out bool isNotRunning);
@@ -24,6 +24,7 @@ internal class Client
             {
                 throw new EntryPointNotFoundException("你只能同时运行一个聊天室实例！");
             }
+
             await ChatMainAsync();
         }, multiOption);
         return await rootCommand.InvokeAsync(args);
@@ -39,7 +40,7 @@ internal class Client
         ILogger logger = factory.CreateLogger("聊天室");
         Console.Title = "聊天室";
         Socket client;
-        string ip;
+        string? ip;
         while (true)
         {
             client = new(SocketType.Stream, ProtocolType.Tcp);
@@ -47,20 +48,23 @@ internal class Client
             ip = Console.ReadLine();
             try
             {
-                await client.ConnectAsync(IPAddress.TryParse(ip, out IPAddress address) ? address : IPAddress.Loopback, 19132);
+                await client.ConnectAsync(IPAddress.TryParse(ip, out IPAddress? address) ? address : IPAddress.Loopback,
+                    19132);
             }
             catch (SocketException ex)
             {
                 logger.LogError("连接失败：{Message}", ex.Message);
                 continue;
             }
+
             break;
         }
+
         Console.Title = $"聊天室：{ip}";
         Dictionary<int, string> lastMessage = [];
         int lastOne = 0;
         Console.Clear();
-        ThreadPool.QueueUserWorkItem(async (_) =>
+        _ = Task.Factory.StartNew(_ =>
         {
             while (true)
             {
@@ -74,6 +78,7 @@ internal class Client
                     {
                         continue;
                     }
+
                     BinaryReader reader = new(stream);
                     uuid = reader.ReadInt32();
                     ticks = reader.ReadInt64();
@@ -88,25 +93,32 @@ internal class Client
                         client = new(SocketType.Stream, ProtocolType.Tcp);
                         try
                         {
-                            await client.ConnectAsync(IPAddress.TryParse(ip, out IPAddress address) ? address : IPAddress.Loopback, 19132);
+                            client.ConnectAsync(
+                                    IPAddress.TryParse(ip, out IPAddress? address) ? address : IPAddress.Loopback,
+                                    19132)
+                                .Wait();
                         }
                         catch (SocketException)
                         {
                         }
                     }
+
                     logger.LogInformation("连接已恢复");
                     continue;
                 }
-                if (lastMessage.TryGetValue(uuid, out string value) && value == message)
+
+                if (lastMessage.TryGetValue(uuid, out string? value) && value == message)
                 {
                     continue;
                 }
+
                 ConsoleColor temp = Console.ForegroundColor;
                 Console.ForegroundColor = ConsoleColor.Blue;
                 if (uuid != lastOne)
                 {
                     Console.Write($"{userName}（{uuid}） ");
                 }
+
                 Console.WriteLine(new DateTime(ticks));
                 Console.ForegroundColor = ConsoleColor.DarkGray;
                 Console.WriteLine(message);
@@ -114,15 +126,16 @@ internal class Client
                 lastMessage[uuid] = message;
                 lastOne = uuid;
             }
-        });
+        }, TaskCreationOptions.LongRunning);
         logger.LogInformation("连接已建立");
         while (true)
         {
-            string line = Console.ReadLine();
+            string? line = Console.ReadLine();
             if (string.IsNullOrEmpty(line) || !client.Connected)
             {
                 continue;
             }
+
             if (line.StartsWith('/'))
             {
                 try
@@ -133,13 +146,16 @@ internal class Client
                 {
                     logger.LogError("命令运行失败：{Message}", ex.Message);
                 }
+
                 continue;
             }
+
             NetworkStream stream = new(client);
             if (!stream.CanWrite)
             {
                 continue;
             }
+
             BinaryWriter writer = new(stream);
             writer.Write(line);
             writer.Write(UserName ?? string.Empty);
