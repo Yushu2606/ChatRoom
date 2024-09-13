@@ -1,7 +1,7 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Reflection;
 using System.Windows;
 using System.Windows.Input;
 
@@ -12,142 +12,155 @@ namespace ChatRoom;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private static Socket Client { get; set; }
+    private const ushort ListenPort = 0x63DD;
+    private readonly ConcurrentDictionary<int, string> _lastMessage = [];
+    private readonly UdpClient _listener;
+    private readonly ConcurrentQueue<(int, DateTime, string, string)> _messageQueue = [];
+    private readonly AutoResetEvent _resetEvent = new(false);
+    private int _lastSender;
 
     public MainWindow()
     {
-        using Mutex _ = new(true, Assembly.GetExecutingAssembly().GetName().Name, out bool isNotRunning);
-        if (!isNotRunning)
-        {
-            MessageBox.Show("你只能同时运行一个聊天室实例！", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
-            throw new EntryPointNotFoundException("你只能同时运行一个聊天室实例！");
-        }
-        InitializeComponent();
-    }
-
-    private async void ConnectAsync(object sender, RoutedEventArgs e)
-    {
-        string ip = IPBox.Text;
-        LoginGrid.IsEnabled = false;
-        Client = new(SocketType.Stream, ProtocolType.Tcp);
         try
         {
-            await Client.ConnectAsync(IPAddress.TryParse(ip, out IPAddress address) ? address : IPAddress.Loopback, 19132);
+            _listener = new(ListenPort);
         }
-        catch (SocketException ex)
+        catch (SocketException e)
         {
-            MessageBox.Show($"连接失败：{ex.Message}", "警告", MessageBoxButton.OK, MessageBoxImage.Warning);
-            LoginGrid.IsEnabled = true;
-            return;
+            MessageBox.Show(e.Message, Title, MessageBoxButton.OK, MessageBoxImage.Error);
+            throw;
         }
-        LoginGrid.Visibility = Visibility.Hidden;
-        RoomGrid.IsEnabled = true;
-        RoomGrid.Visibility = Visibility.Visible;
-        Dictionary<int, string> lastMessage = [];
-        int lastOne = 0;
-        ThreadPool.QueueUserWorkItem(async (_) =>
+
+        InitializeComponent();
+        StartListener();
+        StartMessageHandler();
+    }
+
+    private void StartListener()
+    {
+        Task.Factory.StartNew(() =>
         {
             while (true)
             {
-                int uuid;
-                long ticks;
-                string message, userName;
-                try
-                {
-                    NetworkStream stream = new(Client);
-                    if (!stream.CanRead)
-                    {
-                        continue;
-                    }
-                    BinaryReader reader = new(stream);
-                    uuid = reader.ReadInt32();
-                    ticks = reader.ReadInt64();
-                    message = reader.ReadString();
-                    userName = reader.ReadString();
-                }
-                catch (IOException ex)
-                {
-                    await Dispatcher.InvokeAsync(() =>
-                    {
-                        ChatBox.Text += $"{Environment.NewLine}已断开连接，重连中：{ex.Message}";
-                        SendButton.IsEnabled = false;
-                    });
-                    while (!Client.Connected)
-                    {
-                        Client = new(SocketType.Stream, ProtocolType.Tcp);
-                        try
-                        {
-                            await Client.ConnectAsync(IPAddress.TryParse(ip, out IPAddress address) ? address : IPAddress.Loopback, 19132);
-                            break;
-                        }
-                        catch (SocketException)
-                        {
-                        }
-                    }
-                    await Dispatcher.InvokeAsync(() =>
-                    {
-                        ChatBox.Text += $"{Environment.NewLine}已重连";
-                        SendButton.IsEnabled = true;
-                    });
-                    continue;
-                }
-                if (lastMessage.TryGetValue(uuid, out string value) && value == message)
-                {
-                    continue;
-                }
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    bool needScroll = false;
-                    if (ChatBox.HorizontalOffset >= ChatBox.ViewportHeight)
-                    {
-                        needScroll = true;
-                    }
-                    if (!string.IsNullOrEmpty(ChatBox.Text))
-                    {
-                        ChatBox.Text += Environment.NewLine;
-                    }
-                    if (uuid != lastOne)
-                    {
-                        if (!string.IsNullOrEmpty(ChatBox.Text))
-                        {
-                            ChatBox.Text += Environment.NewLine;
-                        }
-                        ChatBox.Text += $"{userName}（{uuid}） ";
-                    }
-                    ChatBox.Text += $"{new DateTime(ticks)}{Environment.NewLine}{message}";
-                    if (needScroll)
-                    {
-                        ChatBox.ScrollToEnd();
-                    }
-                });
-                lastMessage[uuid] = message;
-                lastOne = uuid;
+                ListenAsync().Wait();
             }
-        });
+        }, TaskCreationOptions.LongRunning);
     }
 
-    private void Send(object sender, RoutedEventArgs e)
+    private async Task ListenAsync()
+    {
+        try
+        {
+            UdpReceiveResult result = await _listener.ReceiveAsync();
+            DateTime dateTime = DateTime.Now;
+            int uid = result.RemoteEndPoint.Address.GetHashCode();
+            using (MemoryStream stream = new(result.Buffer))
+            {
+                using (BinaryReader reader = new(stream))
+                {
+                    string message = reader.ReadString();
+                    string userName = reader.ReadString();
+                    _messageQueue.Enqueue((uid, dateTime, message, userName));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await Dispatcher.InvokeAsync(() => ChatBox.AppendText($"{Environment.NewLine}{ex}"));
+        }
+    }
+
+    private void StartMessageHandler()
+    {
+        Task.Factory.StartNew(() =>
+        {
+            while (true)
+            {
+                while (_messageQueue.TryDequeue(
+                           out (int Uid, DateTime DateTime, string Message, string UserName) message))
+                {
+                    HandleMessageAsync(message.Uid, message.DateTime, message.Message, message.UserName).Wait();
+                }
+
+                _resetEvent.WaitOne();
+            }
+        }, TaskCreationOptions.LongRunning);
+    }
+
+    private async Task HandleMessageAsync(int uid, DateTime dateTime, string message, string userName)
+    {
+        if (_lastMessage.TryGetValue(uid, out string? value) && value == message)
+        {
+            return;
+        }
+
+        await Dispatcher.InvokeAsync(() =>
+        {
+            bool needScroll = ChatBox.HorizontalOffset >= ChatBox.ViewportHeight;
+            if (!string.IsNullOrEmpty(ChatBox.Text))
+            {
+                ChatBox.AppendText(Environment.NewLine);
+            }
+
+            if (uid != _lastSender)
+            {
+                if (!string.IsNullOrEmpty(ChatBox.Text))
+                {
+                    ChatBox.AppendText(Environment.NewLine);
+                }
+
+                ChatBox.AppendText($"{userName}（{uid}） ");
+            }
+
+            ChatBox.AppendText($"{dateTime}{Environment.NewLine}{message}");
+            if (needScroll)
+            {
+                ChatBox.ScrollToEnd();
+            }
+        });
+        _lastMessage[uid] = message;
+        _lastSender = uid;
+    }
+
+    private async Task SendAsync(DateTime dateTime)
     {
         if (string.IsNullOrEmpty(InputBox.Text))
         {
             return;
         }
-        NetworkStream stream = new(Client);
-        if (!stream.CanWrite)
+
+        IPEndPoint ep = new(IPAddress.None, ListenPort);
+        using (MemoryStream stream = new())
+        {
+            await using (BinaryWriter writer = new(stream))
+            {
+                writer.Write(InputBox.Text);
+                writer.Write(NameBox.Text);
+            }
+
+            using (UdpClient sender = new(default))
+            {
+                var buffer = stream.GetBuffer();
+                await sender.SendAsync(buffer, ep);
+            }
+        }
+
+        await HandleMessageAsync(default, dateTime, InputBox.Text, NameBox.Text);
+        InputBox.Clear();
+    }
+
+    private async void SendButton_Click(object sender, RoutedEventArgs e)
+    {
+        await SendAsync(DateTime.Now);
+    }
+
+    private async void InputBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is not Key.Enter)
         {
             return;
         }
-        BinaryWriter writer = new(stream);
-        writer.Write(InputBox.Text);
-        writer.Write(NameBox.Text);
-        InputBox.Text = string.Empty;
-    }
 
-    private void EnterButtonDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key is Key.Enter && SendButton.IsEnabled)
-        {
-            Send(default, default);
-        }
+        await SendAsync(DateTime.Now);
     }
 }

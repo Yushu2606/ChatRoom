@@ -3,24 +3,13 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:ChatRoom" x:Class="ChatRoom.MainWindow"
+        x:Class="ChatRoom.MainWindow"
         mc:Ignorable="d"
-        Title="聊天室" Height="450" Width="800" FontFamily="Segoe UI Emoji">
-    <Window.Resources>
-        <local:ChatBoxHeightConverter x:Key="ChatBoxHeightConverter"/>
-        <local:ChatBoxWidthConverter x:Key="ChatBoxWidthConverter"/>
-        <local:InputBoxWidthConverter x:Key="InputBoxWidthConverter"/>
-    </Window.Resources>
+        Title="聊天室" Height="450" Width="800" MinHeight="450" MinWidth="800">
     <Grid>
-        <Grid x:Name="LoginGrid">
-            <TextBox x:Name="IPBox" Height="24" Width="100" Margin="0,-35,0,0" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            <Button Content="连接" Height="24" Width="50" Margin="0,35,0,0" Click="ConnectAsync" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-        </Grid>
-        <Grid x:Name="RoomGrid" IsEnabled="False" Visibility="Hidden">
-            <TextBox x:Name="NameBox" Height="24" Width="100" Margin="10,10,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"/>
-            <TextBox x:Name="ChatBox" Height="{Binding ActualHeight, Converter={StaticResource ChatBoxHeightConverter}, ElementName=RoomGrid, IsAsync=True, Mode=OneWay}" Width="{Binding ActualWidth, Converter={StaticResource ChatBoxWidthConverter}, ElementName=RoomGrid, IsAsync=True, Mode=OneWay}" Margin="10,39,0,0" TextWrapping="Wrap" HorizontalAlignment="Left" VerticalAlignment="Top" IsReadOnly="True" VerticalScrollBarVisibility="Auto"/>
-            <TextBox x:Name="InputBox" Height="48" Margin="0,0,115,10" KeyDown="EnterButtonDown" TextWrapping="Wrap" HorizontalAlignment="Right" VerticalAlignment="Bottom" Width="{Binding ActualWidth, Converter={StaticResource InputBoxWidthConverter}, ElementName=RoomGrid, IsAsync=True, Mode=OneWay}"/>
-            <Button x:Name="SendButton" Content="发送" Height="48" Width="100" Margin="0,0,10,10" Click="Send" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
-        </Grid>
+        <TextBox x:Name="NameBox" Margin="10,10,10,0" HorizontalAlignment="Left" VerticalAlignment="Top" MinWidth="128" ToolTip="用户名"/>
+        <TextBox x:Name="ChatBox" Margin="10,56,10,74" TextWrapping="Wrap" IsReadOnly="True" VerticalScrollBarVisibility="Auto"/>
+        <TextBox x:Name="InputBox" Margin="10,0,111,10" TextWrapping="Wrap" VerticalAlignment="Bottom" MaxHeight="54" KeyDown="InputBox_KeyDown"/>
+        <Button Content="发送" Height="54" Width="96" Margin="0,0,10,10" HorizontalAlignment="Right" VerticalAlignment="Bottom" Click="SendButton_Click"/>
     </Grid>
 </Window>
